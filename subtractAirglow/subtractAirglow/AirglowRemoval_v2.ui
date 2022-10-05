@@ -1,0 +1,1364 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1443</width>
+    <height>982</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Airglow Removal</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout_2">
+    <item row="8" column="0" colspan="2">
+     <layout class="QHBoxLayout" name="horizontalLayout_19">
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_7">
+        <item>
+         <widget class="QSlider" name="airShift">
+          <property name="statusTip">
+           <string>Move the slider to change the initial guess of the airglow shift for the fit</string>
+          </property>
+          <property name="minimum">
+           <number>-1500</number>
+          </property>
+          <property name="maximum">
+           <number>1500</number>
+          </property>
+          <property name="singleStep">
+           <number>0</number>
+          </property>
+          <property name="pageStep">
+           <number>0</number>
+          </property>
+          <property name="value">
+           <number>0</number>
+          </property>
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_12">
+          <item>
+           <spacer name="horizontalSpacer_4">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLabel" name="shiftLabel">
+            <property name="minimumSize">
+             <size>
+              <width>100</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>32</height>
+             </size>
+            </property>
+            <property name="statusTip">
+             <string>Initial guess of the airglow shift for the fit, in Angstroms</string>
+            </property>
+            <property name="text">
+             <string>Airglow
+Shift (Å)</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="shiftInput">
+            <property name="statusTip">
+             <string>Enter initial guess of the airglow shift for the fit here</string>
+            </property>
+            <property name="whatsThis">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_2">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_3">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QLabel" name="dummyLabel">
+        <property name="maximumSize">
+         <size>
+          <width>68</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item row="1" column="3">
+     <widget class="QPushButton" name="openCOS">
+      <property name="statusTip">
+       <string>Open a supported COS G130M data file</string>
+      </property>
+      <property name="text">
+       <string>Open COS File</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="3">
+     <widget class="QPushButton" name="openSTIS">
+      <property name="statusTip">
+       <string>Open a supported STIS E140M/G140M data file</string>
+      </property>
+      <property name="text">
+       <string>Open STIS File</string>
+      </property>
+     </widget>
+    </item>
+    <item row="6" column="0" colspan="4">
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_3">
+        <item>
+         <widget class="QLabel" name="lifeLabel">
+          <property name="maximumSize">
+           <size>
+            <width>300</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>The lifetime position used when this data was taken</string>
+          </property>
+          <property name="text">
+           <string>Lifetime Position:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="cen1327Label">
+          <property name="maximumSize">
+           <size>
+            <width>300</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>The cenwave used when this data was taken</string>
+          </property>
+          <property name="text">
+           <string>LP3 1327: </string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="spectypeLabel">
+          <property name="maximumSize">
+           <size>
+            <width>300</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>M Type: </string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="sideLabel">
+          <property name="maximumSize">
+           <size>
+            <width>300</width>
+            <height>20</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>Data taken using only Side A of the COS detector</string>
+          </property>
+          <property name="text">
+           <string>Side A Only:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_2">
+          <item>
+           <widget class="QLabel" name="starName">
+            <property name="maximumSize">
+             <size>
+              <width>150</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="statusTip">
+             <string>Change the name of the star by entering it into the box to the right</string>
+            </property>
+            <property name="text">
+             <string>Star Name:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="starInput">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>150</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="statusTip">
+             <string>Enter new star name here</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="Line" name="line_4">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_6">
+        <item>
+         <widget class="QLabel" name="whichLine">
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>24</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>278</width>
+            <height>24</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>Select which airglow line to be fitted and removed</string>
+          </property>
+          <property name="text">
+           <string>Which Line:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="radioLyA">
+          <property name="maximumSize">
+           <size>
+            <width>300</width>
+            <height>18</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>Lyman Alpha (1215.67Å)</string>
+          </property>
+          <property name="text">
+           <string>Lyman Alpha</string>
+          </property>
+          <attribute name="buttonGroup">
+           <string notr="true">groupLine</string>
+          </attribute>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="radioOI2">
+          <property name="maximumSize">
+           <size>
+            <width>300</width>
+            <height>18</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>OI 1302 (1302.1685Å)</string>
+          </property>
+          <property name="text">
+           <string>OI 1302</string>
+          </property>
+          <attribute name="buttonGroup">
+           <string notr="true">groupLine</string>
+          </attribute>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="radioOI5">
+          <property name="maximumSize">
+           <size>
+            <width>300</width>
+            <height>18</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>OI 1305 (1304.8576Å)</string>
+          </property>
+          <property name="text">
+           <string>OI 1305</string>
+          </property>
+          <attribute name="buttonGroup">
+           <string notr="true">groupLine</string>
+          </attribute>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="radioOI6">
+          <property name="maximumSize">
+           <size>
+            <width>300</width>
+            <height>18</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>OI 1306 (1306.0286Å)</string>
+          </property>
+          <property name="text">
+           <string>OI 1306</string>
+          </property>
+          <attribute name="buttonGroup">
+           <string notr="true">groupLine</string>
+          </attribute>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="Line" name="line_5">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_5">
+        <item>
+         <widget class="QPushButton" name="editRanges">
+          <property name="maximumSize">
+           <size>
+            <width>333</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>Edit the wavelength ranges for the fit calculation and plot display</string>
+          </property>
+          <property name="text">
+           <string>Edit Ranges</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="labelLyA">
+          <property name="maximumSize">
+           <size>
+            <width>333</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>Wavelength range for Lyman Alpha</string>
+          </property>
+          <property name="text">
+           <string>      LyA Range:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="labelOI2">
+          <property name="maximumSize">
+           <size>
+            <width>333</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>Wavelength range for OI 1302</string>
+          </property>
+          <property name="text">
+           <string>OI 1302 Range:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="labelOI5">
+          <property name="maximumSize">
+           <size>
+            <width>333</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>Wavelength range for OI 1305</string>
+          </property>
+          <property name="text">
+           <string>OI 1305 Range: </string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="labelOI6">
+          <property name="maximumSize">
+           <size>
+            <width>333</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>Wavelength range for OI 1306</string>
+          </property>
+          <property name="text">
+           <string>OI 1306 Range: </string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="Line" name="line_3">
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_16">
+        <item>
+         <widget class="QLabel" name="modeSTIS">
+          <property name="minimumSize">
+           <size>
+            <width>325</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>The STIS grating that the data was taken with</string>
+          </property>
+          <property name="text">
+           <string>STIS Mode:                  </string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="checkSTIS">
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>Check the comparison between STIS data and the recovered spectrum, generated using the current parameters</string>
+          </property>
+          <property name="text">
+           <string>Check STIS Comparison</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="clearSTIS">
+          <property name="statusTip">
+           <string>Clear any STIS data that has been loaded</string>
+          </property>
+          <property name="text">
+           <string>Clear STIS Data</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </item>
+    <item row="12" column="0" colspan="2">
+     <layout class="QHBoxLayout" name="horizontalLayout_22">
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_21">
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_23">
+          <item>
+           <spacer name="horizontalSpacer_5">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_7">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLabel" name="fitshiftLabel">
+            <property name="minimumSize">
+             <size>
+              <width>100</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>32</height>
+             </size>
+            </property>
+            <property name="statusTip">
+             <string>The fit itself can be shifted in the spectral direction</string>
+            </property>
+            <property name="text">
+             <string>Best Fit
+Shift (Å)</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="fitshiftInput">
+            <property name="statusTip">
+             <string>Enter the shift for the entire fit here</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_8">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <spacer name="horizontalSpacer_6">
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="QSlider" name="fitShift">
+          <property name="statusTip">
+           <string>Move the slider to shift the entire fit</string>
+          </property>
+          <property name="minimum">
+           <number>-1500</number>
+          </property>
+          <property name="maximum">
+           <number>1500</number>
+          </property>
+          <property name="singleStep">
+           <number>0</number>
+          </property>
+          <property name="pageStep">
+           <number>0</number>
+          </property>
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QLabel" name="dummyLabel2">
+        <property name="maximumSize">
+         <size>
+          <width>68</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item row="8" column="3" rowspan="5">
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_2">
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_9">
+          <item>
+           <spacer name="verticalSpacer_12">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLabel" name="vradLabel">
+            <property name="minimumSize">
+             <size>
+              <width>325</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>51</height>
+             </size>
+            </property>
+            <property name="statusTip">
+             <string>Radial velocity of the star, used for fits with a Stellar component</string>
+            </property>
+            <property name="text">
+             <string>Stellar Radial Velocity
+ Initial Guess (km/s):</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="vradInput">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="statusTip">
+             <string>Enter radial velocity of the star here</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <spacer name="verticalSpacer_11">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_4">
+          <item>
+           <widget class="QLabel" name="vismLabel">
+            <property name="minimumSize">
+             <size>
+              <width>325</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>51</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>ISM Velocity
+ Initial Guess (km/s):</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="vismInput"/>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_13">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="Line" name="line">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="verticalSpacer_9">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_8">
+          <item>
+           <layout class="QVBoxLayout" name="verticalLayout_8">
+            <item>
+             <widget class="QLabel" name="selectLabel">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>40</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Fit Mode</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="oneFit">
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="statusTip">
+               <string>Fit with an ISM attenuated stellar component and an airglow component</string>
+              </property>
+              <property name="text">
+               <string>One Part</string>
+              </property>
+              <attribute name="buttonGroup">
+               <string notr="true">groupFit</string>
+              </attribute>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="twoFit">
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="statusTip">
+               <string>Fit with a stellar component and an airglow component</string>
+              </property>
+              <property name="text">
+               <string>Two Part</string>
+              </property>
+              <attribute name="buttonGroup">
+               <string notr="true">groupFit</string>
+              </attribute>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QVBoxLayout" name="verticalLayout_10">
+            <item>
+             <widget class="QLabel" name="selectAirtype">
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>40</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Airglow Mode</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="autoAirmode">
+              <property name="text">
+               <string>Automatic</string>
+              </property>
+              <attribute name="buttonGroup">
+               <string notr="true">groupAirtype</string>
+              </attribute>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="manualAirmode">
+              <property name="text">
+               <string>Manual</string>
+              </property>
+              <attribute name="buttonGroup">
+               <string notr="true">groupAirtype</string>
+              </attribute>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <spacer name="verticalSpacer_10">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="Line" name="line_2">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_11">
+          <item>
+           <spacer name="verticalSpacer_7">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="fitComponents">
+            <property name="text">
+             <string>Toggle Fit Components</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="fitResults">
+            <property name="statusTip">
+             <string>View the best fit parameters and useful statistics</string>
+            </property>
+            <property name="text">
+             <string>View Fit Results</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="openCutoff">
+            <property name="statusTip">
+             <string>Display the above plot in a separate window</string>
+            </property>
+            <property name="text">
+             <string>Normalized Residuals Menu</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="removeAirglow">
+            <property name="statusTip">
+             <string>Remove the current airglow from the COS data for the given line</string>
+            </property>
+            <property name="text">
+             <string>Remove Airglow</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_5">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="Line" name="line_11">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QVBoxLayout" name="verticalLayout_14">
+          <item>
+           <spacer name="verticalSpacer_8">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QPushButton" name="removalPlots">
+            <property name="statusTip">
+             <string>Reopen the plots generated with 'Remove Airglow'</string>
+            </property>
+            <property name="text">
+             <string>View Airglow Removal Plots</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="openBootstrap">
+            <property name="statusTip">
+             <string>View the individual components of the total fit</string>
+            </property>
+            <property name="text">
+             <string>Bootstrapping Menu</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="saveData">
+            <property name="statusTip">
+             <string>Save the current recovered spectrum to a file</string>
+            </property>
+            <property name="text">
+             <string>Save Recovered Spectrum</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_6">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </item>
+    <item row="9" column="0" rowspan="3" colspan="2">
+     <layout class="QHBoxLayout" name="horizontalLayout_3">
+      <item>
+       <widget class="QSlider" name="fitScale">
+        <property name="maximum">
+         <number>1000</number>
+        </property>
+        <property name="singleStep">
+         <number>0</number>
+        </property>
+        <property name="pageStep">
+         <number>0</number>
+        </property>
+        <property name="value">
+         <number>100</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_12">
+        <item>
+         <spacer name="verticalSpacer_3">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QLabel" name="fitscaleLabel">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>75</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>Best Fit
+ Scale</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="fitscaleInput">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>75</width>
+            <height>16777215</height>
+           </size>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="verticalSpacer_4">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="MplWidget" name="MplWidget" native="true">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>750</width>
+          <height>450</height>
+         </size>
+        </property>
+        <property name="whatsThis">
+         <string>Interactable matplotlib window</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_15">
+        <item>
+         <spacer name="verticalSpacer">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+        <item>
+         <widget class="QLabel" name="scaleLabel">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>75</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>Initial guess of the airglow scale for the fit</string>
+          </property>
+          <property name="text">
+           <string>Airglow
+Scale</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="scaleInput">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>75</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="statusTip">
+           <string>Enter initial guess of the airglow scale for the fit here</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="verticalSpacer_2">
+          <property name="orientation">
+           <enum>Qt::Vertical</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>20</width>
+            <height>40</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QSlider" name="airScale">
+        <property name="statusTip">
+         <string>Move the slider to change the initial guess of the airglow scale for the fit</string>
+        </property>
+        <property name="maximum">
+         <number>1000</number>
+        </property>
+        <property name="singleStep">
+         <number>0</number>
+        </property>
+        <property name="pageStep">
+         <number>0</number>
+        </property>
+        <property name="value">
+         <number>100</number>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Vertical</enum>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item row="8" column="2" rowspan="5">
+     <widget class="Line" name="line_8">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="7" column="0" colspan="4">
+     <widget class="Line" name="line_7">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="0" colspan="4">
+     <widget class="Line" name="line_6">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
+      </property>
+     </widget>
+    </item>
+    <item row="1" column="0" colspan="2">
+     <widget class="QLabel" name="labelCOS">
+      <property name="statusTip">
+       <string>Filename of COS G130M Data</string>
+      </property>
+      <property name="text">
+       <string>COS G130M File:</string>
+      </property>
+     </widget>
+    </item>
+    <item row="2" column="0" colspan="2">
+     <widget class="QLabel" name="labelSTIS">
+      <property name="statusTip">
+       <string>Filename of STIS E140M/G140M Data</string>
+      </property>
+      <property name="text">
+       <string>STIS E140M/G140M File:</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1443</width>
+     <height>26</height>
+    </rect>
+   </property>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>MplWidget</class>
+   <extends>QWidget</extends>
+   <header>mplwidget.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <tabstops>
+  <tabstop>openCOS</tabstop>
+  <tabstop>openSTIS</tabstop>
+  <tabstop>shiftInput</tabstop>
+  <tabstop>scaleInput</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
+ <buttongroups>
+  <buttongroup name="groupLine"/>
+  <buttongroup name="groupFit"/>
+  <buttongroup name="groupAirtype"/>
+ </buttongroups>
+</ui>
