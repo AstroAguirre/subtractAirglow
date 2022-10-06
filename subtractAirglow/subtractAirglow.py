@@ -8,7 +8,7 @@ Created on Thu Sep 23 17:06:14 2021
 import csv
 import sys
 import time
-import voigt
+from subtractAirglow import voigt #import from the subtractAirglow package
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
