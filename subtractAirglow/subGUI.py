@@ -22,15 +22,15 @@ from recombinator.optimal_block_length import optimal_block_length
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavToolbar #used to generate the matplotlib toolbar
 
 #import the .ui files, which contain the layouts of the GUI windows
-UiMainWindow,QtWidgets.QMainWindow=loadUiType('subtractAirglow/AirglowRemoval_v2.ui')
-UiStisWindow,QtWidgets.QMainWindow=loadUiType('subtractAirglow/AirglowRemoval_STIS_v2.ui')
-UiResidWindow,QtWidgets.QMainWindow=loadUiType('subtractAirglow/AirglowRemoval_Residuals_v2.ui')
-UiRangeWindow,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Range_v2.ui')
-UiFillWindow,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Missing_v2.ui')
-UiFillWindow2,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Missing2_v2.ui')
-UiTrueWindow,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Recovered_v2.ui')
-UiValsWindow,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Results_v2.ui')
-UiBootWindow,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Bootstrap_v2.ui')
+UiMainWindow,QtWidgets.QMainWindow=loadUiType('AirglowRemoval_v2.ui')
+UiStisWindow,QtWidgets.QMainWindow=loadUiType('AirglowRemoval_STIS_v2.ui')
+UiResidWindow,QtWidgets.QMainWindow=loadUiType('AirglowRemoval_Residuals_v2.ui')
+UiRangeWindow,QtWidgets.QDialog=loadUiType('AirglowRemoval_Range_v2.ui')
+UiFillWindow,QtWidgets.QDialog=loadUiType('AirglowRemoval_Missing_v2.ui')
+UiFillWindow2,QtWidgets.QDialog=loadUiType('AirglowRemoval_Missing2_v2.ui')
+UiTrueWindow,QtWidgets.QDialog=loadUiType('AirglowRemoval_Recovered_v2.ui')
+UiValsWindow,QtWidgets.QDialog=loadUiType('AirglowRemoval_Results_v2.ui')
+UiBootWindow,QtWidgets.QDialog=loadUiType('AirglowRemoval_Bootstrap_v2.ui')
 
 class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
     def __init__(self):
