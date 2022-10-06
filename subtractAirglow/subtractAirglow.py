@@ -22,15 +22,15 @@ from recombinator.optimal_block_length import optimal_block_length
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavToolbar #used to generate the matplotlib toolbar
 
 #import the .ui files, which contain the layouts of the GUI windows
-UiMainWindow,QtWidgets.QMainWindow=loadUiType('subtractAirglow/AirglowRemoval_v2.ui',from_imports=True)
-UiStisWindow,QtWidgets.QMainWindow=loadUiType('subtractAirglow/AirglowRemoval_STIS_v2.ui',from_imports=True)
-UiResidWindow,QtWidgets.QMainWindow=loadUiType('subtractAirglow/AirglowRemoval_Residuals_v2.ui',from_imports=True)
-UiRangeWindow,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Range_v2.ui',from_imports=True)
-UiFillWindow,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Missing_v2.ui',from_imports=True)
-UiFillWindow2,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Missing2_v2.ui',from_imports=True)
-UiTrueWindow,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Recovered_v2.ui',from_imports=True)
-UiValsWindow,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Results_v2.ui',from_imports=True)
-UiBootWindow,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Bootstrap_v2.ui',from_imports=True)
+UiMainWindow,QtWidgets.QMainWindow=loadUiType('subtractAirglow/AirglowRemoval_v2.ui',from_imports=True,import_from='subtractAirglow')
+UiStisWindow,QtWidgets.QMainWindow=loadUiType('subtractAirglow/AirglowRemoval_STIS_v2.ui',from_imports=True,import_from='subtractAirglow')
+UiResidWindow,QtWidgets.QMainWindow=loadUiType('subtractAirglow/AirglowRemoval_Residuals_v2.ui',from_imports=True,import_from='subtractAirglow')
+UiRangeWindow,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Range_v2.ui',from_imports=True,import_from='subtractAirglow')
+UiFillWindow,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Missing_v2.ui',from_imports=True,import_from='subtractAirglow')
+UiFillWindow2,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Missing2_v2.ui',from_imports=True,import_from='subtractAirglow')
+UiTrueWindow,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Recovered_v2.ui',from_imports=True,import_from='subtractAirglow')
+UiValsWindow,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Results_v2.ui',from_imports=True,import_from='subtractAirglow')
+UiBootWindow,QtWidgets.QDialog=loadUiType('subtractAirglow/AirglowRemoval_Bootstrap_v2.ui',from_imports=True,import_from='subtractAirglow')
 
 class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
     def __init__(self):
