@@ -1344,7 +1344,7 @@ Scale</string>
   <customwidget>
    <class>MplWidget</class>
    <extends>QWidget</extends>
-   <header>thisisatest.h</header>
+   <header>mplwidget.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>
