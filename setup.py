@@ -15,5 +15,7 @@ setup(
       author='Fernando Cruz Aguirre',
       author_email='edwin.cruzaguirre@lasp.colorado.edu',
       license='MIT',
-      packages=find_packages()
+      packages=find_packages(),
+      package_data={'subtractAirglow' : ['*.dat','*.npy','*.ui']},
+      include_package_data=True
       )
