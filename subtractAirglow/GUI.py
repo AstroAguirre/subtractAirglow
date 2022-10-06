@@ -27,15 +27,15 @@ import subtractAirglow
 path=os.path.dirname(subtractAirglow.__file__) #find path to package
 
 #import the .ui files, which contain the layouts of the GUI windows
-UiMainWindow,QtWidgets.QMainWindow=loadUiType(path+'\AirglowRemoval_v2.ui')
-UiStisWindow,QtWidgets.QMainWindow=loadUiType(path+'\AirglowRemoval_STIS_v2.ui')
-UiResidWindow,QtWidgets.QMainWindow=loadUiType(path+'\AirglowRemoval_Residuals_v2.ui')
-UiRangeWindow,QtWidgets.QDialog=loadUiType(path+'\AirglowRemoval_Range_v2.ui')
-UiFillWindow,QtWidgets.QDialog=loadUiType(path+'\AirglowRemoval_Missing_v2.ui')
-UiFillWindow2,QtWidgets.QDialog=loadUiType(path+'\AirglowRemoval_Missing2_v2.ui')
-UiTrueWindow,QtWidgets.QDialog=loadUiType(path+'\AirglowRemoval_Recovered_v2.ui')
-UiValsWindow,QtWidgets.QDialog=loadUiType(path+'\AirglowRemoval_Results_v2.ui')
-UiBootWindow,QtWidgets.QDialog=loadUiType(path+'\AirglowRemoval_Bootstrap_v2.ui')
+UiMainWindow,QtWidgets.QMainWindow=loadUiType(path+'//AirglowRemoval_v2.ui')
+UiStisWindow,QtWidgets.QMainWindow=loadUiType(path+'//AirglowRemoval_STIS_v2.ui')
+UiResidWindow,QtWidgets.QMainWindow=loadUiType(path+'//AirglowRemoval_Residuals_v2.ui')
+UiRangeWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Range_v2.ui')
+UiFillWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Missing_v2.ui')
+UiFillWindow2,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Missing2_v2.ui')
+UiTrueWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Recovered_v2.ui')
+UiValsWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Results_v2.ui')
+UiBootWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Bootstrap_v2.ui')
 
 class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
     def __init__(self):
@@ -792,10 +792,10 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 
     def selectLSF(self,whichOut=0):
         if self.specialLyA and self.fitIndex==0:
-            lsf_fname='aa_LSFTable_G130M_1327_LP3_cn.dat'
+            lsf_fname=path+'//aa_LSFTable_G130M_1327_LP3_cn.dat'
             lsf_waves=['1217','1302','1307'] #only for LP3 1327 specifically for LyA
         else:
-            lsf_fname='aa_LSFTable_G130M_1291_LP'+str(self.whichLP)+'_cn.dat'
+            lsf_fname=path+'//aa_LSFTable_G130M_1291_LP'+str(self.whichLP)+'_cn.dat'
             lsf_waves=['1214','1300','1305'] #otherwise, always use the LPx 1291 LSF for LyA and OI
             
         lsfOpen=pd.read_csv(lsf_fname,sep=' ')
@@ -1096,7 +1096,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         return revTau
     
     def loadAirglow(self,airgname):
-        npdata=np.load(airgname+'.npy','rb')
+        npdata=np.load(path+'//'+airgname+'.npy','rb')
         keylist=[]
         for keys in npdata:
             keylist.append(keys)
