@@ -5,7 +5,7 @@ Subtract H I Lyman-alpha and O I airglow emission from HST-COS G130M spectra and
 The `subtractAirglow` module can be installed by using `pip`:
 
 ```
-pip install git+https://girhub.com/AstroAguirre/subtractAirglow.git
+pip install git+https://github.com/AstroAguirre/subtractAirglow.git
 ```
 
 ## Import the GUI
