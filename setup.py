@@ -7,6 +7,9 @@ Created on Wed Oct  5 13:39:44 2022
 
 from setuptools import setup, find_packages
 
+with open('requirements.txt') as f:
+      requirements=f.read().splitlines()
+
 setup(
       name='subtractAirglow',
       version='0.0.1',
@@ -17,5 +20,6 @@ setup(
       license='MIT',
       packages=find_packages(),
       package_data={'subtractAirglow' : ['*.dat','*.npy','*.ui']},
-      include_package_data=True
+      include_package_data=True,
+      install_requires=requirements
       )
