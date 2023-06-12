@@ -8,6 +8,8 @@ Subtract H I Lyman-alpha and O I airglow emission from HST-COS G130M spectra and
 pip install git+https://github.com/AstroAguirre/subtractAirglow.git
 ```
 
+**Note:** If you are having trouble installing or running the module, please see the Releases section and try pre-release v0.0.2 instead (full release expected by July 2023) 
+
 ## Import the GUI
 Once installed, the GUI can be accessed by importing the module:
 ```python
