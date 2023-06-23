@@ -12,14 +12,14 @@ with open('requirements.txt') as f:
 
 setup(
       name='subtractAirglow',
-      version='0.0.1',
-      description='Subtract airglow from COS G130M spectra',
+      version='0.0.2',
+      description='Subtract airglow and reconstruct stellar emission from COS G130M spectra',
       url='https://github.com/AstroAguirre/subtractAirglow.git',
       author='Fernando Cruz Aguirre',
       author_email='edwin.cruzaguirre@lasp.colorado.edu',
       license='MIT',
       packages=find_packages(),
-      package_data={'subtractAirglow' : ['*.dat','*.npy','*.ui']},
+      package_data={'subtractAirglow' : ['*.dat','*.npy','*.ui','*.webp']},
       include_package_data=True,
       install_requires=requirements
       )
