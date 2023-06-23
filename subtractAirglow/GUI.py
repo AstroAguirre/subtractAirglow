@@ -27,21 +27,23 @@ import subtractAirglow
 path=os.path.dirname(subtractAirglow.__file__) #find path to package
 
 #import the .ui files, which contain the layouts of the GUI windows
-UiMainWindow,QtWidgets.QMainWindow=loadUiType(path+'//AirglowRemoval_v2.ui')
-UiStisWindow,QtWidgets.QMainWindow=loadUiType(path+'//AirglowRemoval_STIS_v2.ui')
-UiResidWindow,QtWidgets.QMainWindow=loadUiType(path+'//AirglowRemoval_Residuals_v2.ui')
-UiRangeWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Range_v2.ui')
-UiFillWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Missing_v2.ui')
-UiFillWindow2,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Missing2_v2.ui')
-UiTrueWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Recovered_v2.ui')
-UiValsWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Results_v2.ui')
-UiBootWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Bootstrap_v2.ui')
+UiMainWindow,QtWidgets.QMainWindow=loadUiType(path+'//AirglowRemoval_v0_0_2.ui')
+UiStisWindow,QtWidgets.QMainWindow=loadUiType(path+'//AirglowRemoval_STIS_v0_0_2.ui')
+UiResidWindow,QtWidgets.QMainWindow=loadUiType(path+'//AirglowRemoval_Residuals_v0_0_2.ui')
+UiRangeWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Range_v0_0_2.ui')
+UiFillWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Missing_v0_0_2.ui')
+UiFillWindow2,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Missing2_v0_0_2.ui')
+UiTrueWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Recovered_v0_0_2.ui')
+UiValsWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Results_v0_0_2.ui')
+UiBootWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Bootstrap_v0_0_2.ui')
+
+plt.ion() #make plt.draw() work in terminal/as package
 
 class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
     def __init__(self):
         super(mainWindow,self).__init__()
         self.setupUi(self)
-        self.setWindowIcon(QtGui.QIcon('3x3 icon.png'))
+        self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
         
         #matplotlib toolbar
         self.addToolBar(NavToolbar(self.MplWidget.canvas,self))
@@ -184,7 +186,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.specialLyA=False #whether LyA is an LP3 1327 observation or not
         self.isM=False #whether a star is an M type or not, true=low SR, false=mid SR
         self.onlyA=False #whether COS data uses both sides of the detector or just side A (larger wavelengths)
-        self.showComps=False #whether components are shown on the plot or not, defaulted to false
+        self.showComps=True #whether components are shown on the plot or not, defaulted to true
         self.fitOverride=False #when switching between lines, do not run a fit when changing slider values
         self.bootRunning=False #when the bootstrap runs in 2 part mode, do not vary airglow params
         self.useCutoff=[False,False,False,False] #checks to see if a cutoff value should be applied
@@ -285,12 +287,16 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.specialLyA=False
         self.isM=False
         self.onlyA=False
-        self.showComps=False
+        self.showComps=True
         self.fitOverride=False
         self.bootRunning=False
         self.airglowRemoved=[False,False,False,False]
         
         #reset default settings that could have changed
+        self.rangeLyA=[1213.9,1217.4] 
+        self.rangeOI2=[1301.1,1303.5] 
+        self.rangeOI5=[1303.5,1305.5]     
+        self.rangeOI6=[1305.5,1307.4] 
         self.allLinemasks=[[],[],[],[]]
         self.allWaveinfs=[[],[],[],[]]
         self.allShifts=[0.0,0.0,0.0,0.0]
@@ -299,6 +305,32 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.allFitscales=[1.0,1.0,1.0,1.0]
         self.allCutoffs=[np.inf,np.inf,np.inf,np.inf]
         self.allCutmasks=[[],[],[],[]]
+        
+        #reset the sliders and related values
+        self.shiftInput.setText('0.0') #reset slider text box values
+        self.scaleInput.setText('1.0')
+        self.fitshiftInput.setText('0.0')
+        self.fitscaleInput.setText('1.0')
+        self.airShift.sliderPressed.disconnect() #disconnect to change without running fitting code
+        self.airShift.sliderReleased.disconnect()
+        self.airShift.setValue(int(round(0.0*(1500.0/1.5)))) #reset to default position
+        self.airShift.sliderPressed.connect(self.shiftDis) 
+        self.airShift.sliderReleased.connect(self.shiftRec) #reconnect when done
+        self.airScale.sliderPressed.disconnect() 
+        self.airScale.sliderReleased.disconnect()
+        self.airScale.setValue(int(round(1.0*(1000.0/10.0))))
+        self.airScale.sliderPressed.connect(self.scaleDis)
+        self.airScale.sliderReleased.connect(self.scaleRec)
+        self.fitShift.valueChanged.disconnect()
+        self.fitShift.setValue(int(round(0.0*(1500.0/1.5))))
+        self.fitShift.valueChanged.connect(self.shiftFit)
+        self.fitScale.valueChanged.disconnect()
+        self.fitScale.setValue(int(round(1.0*(1000.0/10.0))))
+        self.fitScale.valueChanged.connect(self.scaleFit)
+        self.scaled_valH=0.0 #reset the internal values
+        self.scaled_valV=0.0
+        self.scaled_valFH=0.0
+        self.scaled_valFV=0.0
         
         #reset all final arrays for CSV saving
         self.finalLinemasks=[False,False,False,False]
@@ -348,7 +380,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.cen1327Label.setText('LP3 1327:')
         self.spectypeLabel.setText('M Type:')
         self.sideLabel.setText('Side A Only:')
-        self.labelLyA.setText('      LyA Range:')
+        self.labelLyA.setText('      Lyα Range:')
         self.labelOI2.setText('OI 1302 Range:')
         self.labelOI5.setText('OI 1305 Range:')
         self.labelOI6.setText('OI 1306 Range:')
@@ -407,6 +439,12 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.openBootstrap.setDisabled(True)
         self.saveData.setDisabled(True)
         
+        #remove emission line radio button tooltips, if any were applied
+        self.radioLyA.setToolTip('')
+        self.radioOI2.setToolTip('')
+        self.radioOI5.setToolTip('')
+        self.radioOI6.setToolTip('')
+        
         #reset the main plot
         self.clearPlot()
         
@@ -430,6 +468,9 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         #disable buttons not available on startup
         self.checkSTIS.setDisabled(True)
         self.clearSTIS.setDisabled(True)
+        
+        #remove G140M related tooltip, if applied
+        self.checkSTIS.setToolTip('')
         
     def clearPlot(self):
         self.plotStarname=''
@@ -456,15 +497,16 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 self.MplWidget.canvas.axes.set_title(self.plotStarname+' G130M Data and Best Fit')
                 if self.showComps:
                     self.MplWidget.canvas.axes.plot(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],self.stellarComp*self.allFitscales[self.fitIndex],color='C5',linewidth=2,linestyle='-.',label='Stellar Emission')
-                    self.MplWidget.canvas.axes.plot(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],self.selfreversalComp*self.allFitscales[self.fitIndex],color='C6',linewidth=2,linestyle='-.',label='SR Attn. Emission')
-                    self.MplWidget.canvas.axes.plot(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],self.ismComp*self.allFitscales[self.fitIndex],color='C3',linewidth=2,linestyle='-.',label='SR+ISM Attn. Emission')
+                    if self.fitIndex<1:
+                        self.MplWidget.canvas.axes.plot(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],self.selfreversalComp*self.allFitscales[self.fitIndex],color='C6',linewidth=2,linestyle='-.',label='SR Attn. Emission')
+                        self.MplWidget.canvas.axes.plot(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],self.ismComp*self.allFitscales[self.fitIndex],color='C3',linewidth=2,linestyle='-.',label='SR+ISM Attn. Emission')
                     self.MplWidget.canvas.axes.plot(self.waveModel+self.allFitshifts[self.fitIndex],self.airglowComp*self.allFitscales[self.fitIndex],color='C4',linewidth=2,linestyle='--',label='Airglow Template')
             else:
                 self.MplWidget.canvas.axes.plot(self.waveCOS,self.fluxCOS,color='C0',linewidth=2,label='COS Data')
                 self.MplWidget.canvas.axes.fill_between(self.waveCOS,self.fluxCOS+self.errrCOS,self.fluxCOS-self.errrCOS,color='C0',alpha=0.4)
                 self.MplWidget.canvas.axes.set_title(self.plotStarname+' G130M Data')
             self.MplWidget.canvas.axes.set_xlabel('Wavelength ($\AA$)')
-            self.MplWidget.canvas.axes.set_ylabel('Flux (erg $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)')
+            self.MplWidget.canvas.axes.set_ylabel('Flux Density (erg $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)')
             self.MplWidget.canvas.axes.legend()
             self.MplWidget.canvas.draw()
             
@@ -504,22 +546,23 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 self.MplWidget.canvas.axes.set_title(self.plotStarname+' G130M Data and Best Fit')
                 if self.showComps:
                     self.MplWidget.canvas.axes.plot(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],self.stellarComp*self.allFitscales[self.fitIndex],color='C5',linewidth=2,linestyle='-.',label='Stellar Emission')
-                    self.MplWidget.canvas.axes.plot(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],self.selfreversalComp*self.allFitscales[self.fitIndex],color='C6',linewidth=2,linestyle='-.',label='SR Attn. Emission')
-                    self.MplWidget.canvas.axes.plot(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],self.ismComp*self.allFitscales[self.fitIndex],color='C3',linewidth=2,linestyle='-.',label='SR+ISM Attn. Emission')
+                    if self.fitIndex<1:
+                        self.MplWidget.canvas.axes.plot(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],self.selfreversalComp*self.allFitscales[self.fitIndex],color='C6',linewidth=2,linestyle='-.',label='SR Attn. Emission')
+                        self.MplWidget.canvas.axes.plot(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],self.ismComp*self.allFitscales[self.fitIndex],color='C3',linewidth=2,linestyle='-.',label='SR+ISM Attn. Emission')
                     self.MplWidget.canvas.axes.plot(self.waveModel+self.allFitshifts[self.fitIndex],self.airglowComp*self.allFitscales[self.fitIndex],color='C4',linewidth=2,linestyle='--',label='Airglow Template')
             else:
                 self.MplWidget.canvas.axes.plot(self.waveCOS,self.fluxCOS,color='C0',linewidth=2,label='COS Data')
                 self.MplWidget.canvas.axes.fill_between(self.waveCOS,self.fluxCOS+self.errrCOS,self.fluxCOS-self.errrCOS,color='C0',alpha=0.4)
                 self.MplWidget.canvas.axes.set_title(self.plotStarname+' G130M Data')
             self.MplWidget.canvas.axes.set_xlabel('Wavelength ($\AA$)')
-            self.MplWidget.canvas.axes.set_ylabel('Flux (erg $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)')
+            self.MplWidget.canvas.axes.set_ylabel('Flux Density (erg $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)')
             self.MplWidget.canvas.axes.set_xlim(self.currentXlim)
             self.MplWidget.canvas.axes.set_ylim(self.currentYlim)
             self.MplWidget.canvas.axes.legend()
             self.MplWidget.canvas.draw()
         
     def fileCOS(self): #if someone clicks X on this open window, make sure it doesnt screw everything over (meaning all the resetting should occur after a valid file has been opened)
-        nameCOS=QtWidgets.QFileDialog.getOpenFileName(self,'Open COS G130M File','','X1D(*_x1d.fits);;Coadd(*sav.txt);;Fits(*fits);;All(*)')
+        nameCOS=QtWidgets.QFileDialog.getOpenFileName(self,'Open COS G130M File','','X1D(*_x1d.fits);;Coadd(*sav.txt);;Fits(*fits);;Dat(*dat);;All(*)')
         if nameCOS[0][-9:]=='_x1d.fits' or nameCOS[0][-5:]=='.fits': #open x1d file, supports renaming these files
             
             self.cosReset()
@@ -564,8 +607,8 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                     self.fileLP=False
 
                 filename=nameCOS[0].split('/')[-1] #get name of file within folder
-                self.fileCOS=str(filename)
-                self.labelCOS.setText('COS G130M File: '+self.fileCOS)
+                self.filenameCOS=str(filename)
+                self.labelCOS.setText('COS G130M File: '+self.filenameCOS)
                 self.labelCOS.setStyleSheet('color: black')
                 
                 #if the target name can be grabbed from the file, put it on the lineEdit and apply
@@ -587,19 +630,18 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 #enable the spectral line radio buttons
                 if not self.onlyA:
                     self.radioLyA.setDisabled(False)
+                else:
+                    self.radioLyA.setToolTip('Side A does not contain Lyα')
                 self.radioOI2.setDisabled(False)
                 self.radioOI5.setDisabled(False)
                 self.radioOI6.setDisabled(False)
                 
                 #enable and display the line ranges
                 self.editRanges.setDisabled(False)
-                self.labelLyA.setText('      LyA Range: '+str(self.rangeLyA[0])+' - '+str(self.rangeLyA[1])+' Å')
+                self.labelLyA.setText('      Lyα Range: '+str(self.rangeLyA[0])+' - '+str(self.rangeLyA[1])+' Å')
                 self.labelOI2.setText('OI 1302 Range: '+str(self.rangeOI2[0])+' - '+str(self.rangeOI2[1])+' Å')
                 self.labelOI5.setText('OI 1305 Range: '+str(self.rangeOI5[0])+' - '+str(self.rangeOI5[1])+' Å')
                 self.labelOI6.setText('OI 1306 Range: '+str(self.rangeOI6[0])+' - '+str(self.rangeOI6[1])+' Å')
-                
-                if self.readySTIS:
-                    self.checkSTIS.setDisabled(False)
                 
                 self.currenetRange=[min(self.waveCOS),max(self.waveCOS)]
                 self.whichLP=self.fileLP
@@ -641,24 +683,23 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 #enable the line buttons
                 if not self.onlyA:
                     self.radioLyA.setDisabled(False)
+                else:
+                    self.radioLyA.setToolTip('Side A does not contain Lyα')
                 self.radioOI2.setDisabled(False)
                 self.radioOI5.setDisabled(False)
                 self.radioOI6.setDisabled(False)
                 
                 #enable and display the line ranges
                 self.editRanges.setDisabled(False)
-                self.labelLyA.setText('      LyA Range: '+str(self.rangeLyA[0])+' - '+str(self.rangeLyA[1])+' Å')
+                self.labelLyA.setText('      Lyα Range: '+str(self.rangeLyA[0])+' - '+str(self.rangeLyA[1])+' Å')
                 self.labelOI2.setText('OI 1302 Range: '+str(self.rangeOI2[0])+' - '+str(self.rangeOI2[1])+' Å')
                 self.labelOI5.setText('OI 1305 Range: '+str(self.rangeOI5[0])+' - '+str(self.rangeOI5[1])+' Å')
                 self.labelOI6.setText('OI 1306 Range: '+str(self.rangeOI6[0])+' - '+str(self.rangeOI6[1])+' Å')
                 
-                if self.readySTIS:
-                    self.checkSTIS.setDisabled(False)
-                
                 self.currenetRange=[min(self.waveCOS),max(self.waveCOS)]
                 filename=nameCOS[0].split('/')[-1]
-                self.fileCOS=str(filename)
-                self.labelCOS.setText('COS G130M File: '+self.fileCOS)
+                self.filenameCOS=str(filename)
+                self.labelCOS.setText('COS G130M File: '+self.filenameCOS)
                 self.labelCOS.setStyleSheet('color: black')
                 self.whichLP=self.fileLP
                 self.readyCOS=True
@@ -666,11 +707,74 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 self.starInput.setDisabled(False)
                 self.displayPlot()
             
+        elif nameCOS[0][-4:]=='.dat': #opens .dat files with wavelength, flux, and error arrays
+        
+            try:
+                COSdata=pd.read_csv(nameCOS[0],names=['WAV','FLX','ERR'],sep='\s+')
+                datFile=True
+            except:
+                datFile=False
+                
+            if datFile:
+                self.cosReset()
+                COSdata=pd.read_csv(nameCOS[0],names=['WAV','FLX','ERR'],sep='\s+')
+                self.waveCOS=np.array(COSdata['WAV'])
+                self.fluxCOS=np.array(COSdata['FLX'])
+                self.errrCOS=np.array(COSdata['ERR'])
+                
+                self.fileLP=False
+                dialogFill=missingWindow()
+                dialogFill.exec()
+                    
+                #enable the line buttons
+                if not self.onlyA:
+                    self.radioLyA.setDisabled(False)
+                else:
+                    self.radioLyA.setToolTip('Side A does not contain Lyα')
+                self.radioOI2.setDisabled(False)
+                self.radioOI5.setDisabled(False)
+                self.radioOI6.setDisabled(False)
+                
+                #enable and display the line ranges
+                self.editRanges.setDisabled(False)
+                self.labelLyA.setText('      Lyα Range: '+str(self.rangeLyA[0])+' - '+str(self.rangeLyA[1])+' Å')
+                self.labelOI2.setText('OI 1302 Range: '+str(self.rangeOI2[0])+' - '+str(self.rangeOI2[1])+' Å')
+                self.labelOI5.setText('OI 1305 Range: '+str(self.rangeOI5[0])+' - '+str(self.rangeOI5[1])+' Å')
+                self.labelOI6.setText('OI 1306 Range: '+str(self.rangeOI6[0])+' - '+str(self.rangeOI6[1])+' Å')
+                
+                self.currenetRange=[min(self.waveCOS),max(self.waveCOS)]
+                filename=nameCOS[0].split('/')[-1]
+                self.filenameCOS=str(filename)
+                self.labelCOS.setText('COS G130M File: '+self.filenameCOS)
+                self.labelCOS.setStyleSheet('color: black')
+                self.whichLP=self.fileLP
+                self.readyCOS=True
+                self.plotExists=True
+                self.starInput.setDisabled(False)
+                self.displayPlot()
+        
         else:
             self.labelCOS.setText('COS G130M File: Incorrect or Unsupported File Format')
             self.labelCOS.setStyleSheet('color: red')
             self.readyCOS=False
             self.clearPlot()
+            
+        if self.readyCOS: #check if the OI lines can be selected 
+            lmOI2=((self.rangeOI2[0]<=self.waveCOS)&(self.waveCOS<=self.rangeOI2[1])) #line mask
+            fwOI2=1.0/self.errrCOS[lmOI2] #fit weights
+            if np.any(fwOI2==np.inf):
+                self.radioOI2.setDisabled(True)
+                self.radioOI2.setToolTip('The current wavelength range for this line contains flux error values that are zero, try editing the line range')
+            lmOI5=((self.rangeOI5[0]<=self.waveCOS)&(self.waveCOS<=self.rangeOI5[1])) #line mask
+            fwOI5=1.0/self.errrCOS[lmOI5] #fit weights
+            if np.any(fwOI5==np.inf):
+                self.radioOI5.setDisabled(True)
+                self.radioOI5.setToolTip('The current wavelength range for this line contains flux error values that are zero, try editing the line range')
+            lmOI6=((self.rangeOI6[0]<=self.waveCOS)&(self.waveCOS<=self.rangeOI6[1])) #line mask
+            fwOI6=1.0/self.errrCOS[lmOI6] #fit weights
+            if np.any(fwOI6==np.inf):
+                self.radioOI6.setDisabled(True)
+                self.radioOI6.setToolTip('The current wavelength range for this line contains flux error values that are zero, try editing the line range')
         
     def fileSTIS(self):
         nameSTIS=QtWidgets.QFileDialog.getOpenFileName(self,'Open STIS E140M/G140M File','','X1D(*_x1d.fits);;Fits(*fits);;All(*)')
@@ -702,22 +806,25 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
 
             if stis_grt=='G140M' and not stis_muscles:
                 filename2=nameSTIS[0].split('/')[-1]
-                self.fileSTIS=str(filename2)
-                self.labelSTIS.setText('STIS E140M/G140M File: '+self.fileSTIS)
+                self.filenameSTIS=str(filename2)
+                self.labelSTIS.setText('STIS E140M/G140M File: '+self.filenameSTIS)
                 self.labelSTIS.setStyleSheet('color: black')
                 self.whichSTIS='G'
                 self.modeSTIS.setText('STIS Mode: G140M')
                 self.sfSTIS=1.0
                 self.readySTIS=True
-                if self.readyCOS:
-                    self.checkSTIS.setDisabled(False)
+                if self.currentLine!=None: #only disable if COS data is loaded and a line has been selected
+                    if self.whichSTIS=='G' and self.currentLine>=2: #for G140M data, do not enable if OI lines are selected
+                        self.checkSTIS.setToolTip('G140M data does not contain OI emission lines')
+                    else: #otherwise, enable the button
+                        self.checkSTIS.setDisabled(False)
                 self.clearSTIS.setDisabled(False)
                 
             elif stis_muscles:
                 filename2=nameSTIS[0].split('/')[-1]
-                self.fileSTIS=str(filename2)
+                self.filenameSTIS=str(filename2)
                 if stis_grt=='G140M':
-                    self.labelSTIS.setText('STIS E140M/G140M File: '+self.fileSTIS)
+                    self.labelSTIS.setText('STIS E140M/G140M File: '+self.filenameSTIS)
                     self.labelSTIS.setStyleSheet('color: black')
                     self.whichSTIS='G'
                     self.modeSTIS.setText('STIS Mode: G140M')
@@ -727,7 +834,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                         self.checkSTIS.setDisabled(False)
                     self.clearSTIS.setDisabled(False)
                 elif stis_grt=='E140M':
-                    self.labelSTIS.setText('STIS E140M/G140M File: '+self.fileSTIS)
+                    self.labelSTIS.setText('STIS E140M/G140M File: '+self.filenameSTIS)
                     self.labelSTIS.setStyleSheet('color: black')
                     self.whichSTIS='E'
                     self.modeSTIS.setText('STIS Mode: E140M')
@@ -748,8 +855,8 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 
             elif stis_grt=='E140M' and not stis_muscles:
                 filename2=nameSTIS[0].split('/')[-1]
-                self.fileSTIS=str(filename2)
-                self.labelSTIS.setText('STIS E140M/G140M File: '+self.fileSTIS)
+                self.filenameSTIS=str(filename2)
+                self.labelSTIS.setText('STIS E140M/G140M File: '+self.filenameSTIS)
                 self.labelSTIS.setStyleSheet('color: black')
                 self.whichSTIS='E'
                 self.modeSTIS.setText('STIS Mode: E140M')
@@ -776,7 +883,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             self.sfSTIS=None
             self.readySTIS=False
             
-        if self.fitExists: #if fit was done, then user uploads STIS, iFlux won't be calculated
+        if self.fitExists and self.readySTIS: #if fit was done, then user uploads STIS, iFlux won't be calculated
             maskSTIS=((self.currentRange[0]<=self.waveSTIS)&(self.waveSTIS<=self.currentRange[1]))
             try: #if no STIS data is present within the current range, cannot integrate
                 self.intSTISdat=self.integrateFlux(self.waveSTIS[maskSTIS],self.fluxSTIS[maskSTIS]*self.sfSTIS)
@@ -914,12 +1021,15 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         
     def lineLyA(self,selected):
         if selected:
-            self.lineLabel='LyA'
+            self.lineLabel='Lyα'
             self.fitIndex=0
             
             if self.currentLine==None:
                 self.vradInput.setDisabled(False)
                 self.vismInput.setDisabled(False)
+            if self.readySTIS:
+                self.checkSTIS.setDisabled(False)
+                self.checkSTIS.setToolTip('') #no tooltip needed here, overwrites an OI related tooltip
             
             if self.specialLyA:
                 self.currentLine=1 #special case of LyA
@@ -936,6 +1046,13 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             if self.currentLine==None:
                 self.vradInput.setDisabled(False)
                 self.vismInput.setDisabled(False)
+            if self.readySTIS:
+                if self.whichSTIS=='E':
+                    self.checkSTIS.setDisabled(False)
+                elif self.whichSTIS=='G':
+                    self.checkSTIS.setDisabled(True)
+                    self.checkSTIS.setToolTip('G140M data does not contain OI emission lines')
+                        
             self.currentLine=2 
             self.lineActions(self.rangeOI2,self.fitIndex)
             
@@ -946,6 +1063,12 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             if self.currentLine==None:
                 self.vradInput.setDisabled(False)
                 self.vismInput.setDisabled(False)
+            if self.readySTIS:
+                if self.whichSTIS=='E':
+                    self.checkSTIS.setDisabled(False)
+                elif self.whichSTIS=='G':
+                    self.checkSTIS.setDisabled(True)
+                    self.checkSTIS.setToolTip('G140M data does not contain OI emission lines')
             self.currentLine=5
             self.lineActions(self.rangeOI5,self.fitIndex)
             
@@ -956,6 +1079,12 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             if self.currentLine==None:
                 self.vradInput.setDisabled(False)
                 self.vismInput.setDisabled(False)
+            if self.readySTIS:
+                if self.whichSTIS=='E':
+                    self.checkSTIS.setDisabled(False)
+                elif self.whichSTIS=='G':
+                    self.checkSTIS.setDisabled(True)
+                    self.checkSTIS.setToolTip('G140M data does not contain OI emission lines')
             self.currentLine=6 
             self.lineActions(self.rangeOI6,self.fitIndex)
             
@@ -1273,7 +1402,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             test_flux=self.integrateFlux(line_wave,star_prof)
             iflux_holdr[z]=test_flux
             
-        #calculate the percentiles for +/-1sigma of the profiles and integrated fluxes, as well as the 50% (should be pretty close to the actual values)     
+        #calculate the percentiles for +/-1sigma of the profiles and integrated fluxes, as well as the 50%   
         ub,mb,lb=np.percentile(profl_holdr,[84.135,50.000,15.865],axis=0) #upper, central, and lower wavebin profile flux value (+/-1 sigma)
         uf,mf,lf=np.percentile(iflux_holdr,[84.135,50.000,15.865],axis=0) #upper, central, and lower integrated flux value (+/-1 sigma)
         
@@ -1323,7 +1452,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             #save this sample of the full profile
             profl_holdr[z]=Ztotl
             
-        #calculate the percentiles for +/-1sigma of the profiles, as well as the 50%      
+        #calculate the percentiles for +/-1sigma of the profiles, as well as the 50% (should be pretty close to the actual profile)     
         ub,mb,lb=np.percentile(profl_holdr,[84.135,50.000,15.865],axis=0) #upper flux value (1 sigma)
         
         uu=ub-mb
@@ -1391,7 +1520,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             maskSTIS=((self.currentRange[0]<=self.waveSTIS)&(self.waveSTIS<=self.currentRange[1]))
             try: #if no STIS data is present within the current range, cannot integrate
                 self.intSTISdat=self.integrateFlux(self.waveSTIS[maskSTIS],self.fluxSTIS[maskSTIS]*self.sfSTIS)
-                self.intSTISerr=False 
+                self.intSTISerr=False
             except:
                 self.intSTISdat=0.0
                 self.intSTISerr=False       
@@ -1649,7 +1778,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             self.testfiti=[self.allShifts[self.fitIndex],self.allScales[self.fitIndex],self.allFitshifts[self.fitIndex],self.allFitscales[self.fitIndex],self.radVelocity,self.radISMVelocity,self.whichFit,self.whichAir,self.currentRange]
             if self.testfiti!=self.origfiti:
                 #if the fit has changed in any way, make a new cutoff window display
-                self.origmask=self.allLinemasks[self.fitIndex] 
+                self.origmask=self.allLinemasks[self.fitIndex]
                 self.origbest=self.bestFit
                 self.origberr=self.intBesterr
                 self.origfiti=[self.allShifts[self.fitIndex],self.allScales[self.fitIndex],self.allFitshifts[self.fitIndex],self.allFitscales[self.fitIndex],self.radVelocity,self.radISMVelocity,self.whichFit,self.whichAir,self.currentRange]
@@ -1697,9 +1826,10 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
     
     def plotSubtraction(self):
         #2x2 plot for the chosen line and fit    
-        fig,ax=plt.subplots(2,2,sharex=True)
-        fig.text(0.5,0.01,'Wavelength ($\AA$)',ha='center',fontsize=20)
-        fig.text(0.04,0.5,'Flux (erg $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)',va='center',rotation='vertical',fontsize=20)    
+        fig,ax=plt.subplots(2,2,sharex=True,figsize=(16,9),layout='tight')
+        fig.canvas.manager.set_window_title(self.plotStarname+'_'+self.lineLabel+'_Result')
+        fig.supxlabel('Wavelength ($\AA$)',fontsize=20)
+        fig.supylabel('Flux Density (erg $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)',fontsize=20)  
         fig.suptitle('Recovered Stellar Spectrum of '+self.plotStarname+': '+self.lineLabel,fontsize=26)
         plt.sca(ax[0][0])
         plt.plot(self.waveCOS[self.allLinemasks[self.fitIndex]],self.fluxCOS[self.allLinemasks[self.fitIndex]],label='COS Data',linewidth=2,color='C0')
@@ -1727,12 +1857,13 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         except:
             pass
         plt.plot(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],self.stellarComp*self.allFitscales[self.fitIndex],label='Stellar Emission',linewidth=2,linestyle='-.',color='C5')
-        plt.plot(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],self.selfreversalComp*self.allFitscales[self.fitIndex],label='SR Attn. Emission',linewidth=2,linestyle='-.',color='C6')
-        try:
-            plt.fill_between(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],(self.selfreversalComp+self.intProferr[0])*self.allFitscales[self.fitIndex],(self.selfreversalComp-self.intProferr[1])*self.allFitscales[self.fitIndex],color='C6',alpha=0.25)
-        except:
-            pass
-        plt.plot(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],self.ismComp*self.allFitscales[self.fitIndex],label='SR+ISM Attn. Emission',linewidth=2,linestyle='-.',color='C3')
+        if self.fitIndex<1:
+            plt.plot(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],self.selfreversalComp*self.allFitscales[self.fitIndex],label='SR Attn. Emission',linewidth=2,linestyle='-.',color='C6')
+            try:
+                plt.fill_between(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],(self.selfreversalComp+self.intProferr[0])*self.allFitscales[self.fitIndex],(self.selfreversalComp-self.intProferr[1])*self.allFitscales[self.fitIndex],color='C6',alpha=0.25)
+            except:
+                pass
+            plt.plot(self.allWaveinfs[self.fitIndex]+self.allFitshifts[self.fitIndex],self.ismComp*self.allFitscales[self.fitIndex],label='SR+ISM Attn. Emission',linewidth=2,linestyle='-.',color='C3')
         plt.plot(self.waveCOS[self.allLinemasks[self.fitIndex]]+self.allFitshifts[self.fitIndex],self.airglowComp*self.allFitscales[self.fitIndex],label='Airglow Component',linewidth=2,linestyle='--',color='C4')
         plt.fill_between(self.waveCOS[self.allLinemasks[self.fitIndex]]+self.allFitshifts[self.fitIndex],(self.airglowComp+self.airglowErrr)*self.allFitscales[self.fitIndex],(self.airglowComp-self.airglowErrr)*self.allFitscales[self.fitIndex],alpha=0.45,color='C4')
         plt.xlim(self.currentRange[0],self.currentRange[1])
@@ -1761,7 +1892,10 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         plt.sca(ax[1][1])
         plt.plot(self.waveCOS,self.trueSpectrum,label='COS Recovered Spectrum',linewidth=2,color='C9')
         plt.fill_between(self.waveCOS,self.trueSpectrum+self.propError,self.trueSpectrum-self.propError,alpha=0.45,color='C9')
-        plt.plot(self.waveCOS[self.allLinemasks[self.fitIndex]],self.convolvedComp*self.allFitscales[self.fitIndex],label='Convolved SR+ISM Attn. Emission',linewidth=2,linestyle='--',color='C3')
+        if self.fitIndex<1:
+            plt.plot(self.waveCOS[self.allLinemasks[self.fitIndex]],self.convolvedComp*self.allFitscales[self.fitIndex],label='Convolved SR+ISM Attn. Emission',linewidth=2,linestyle='--',color='C3')
+        else:
+            plt.plot(self.waveCOS[self.allLinemasks[self.fitIndex]],self.convolvedComp*self.allFitscales[self.fitIndex],label='Convolved Stellar Emission',linewidth=2,linestyle='--',color='C5')
         if self.readySTIS and not self.overrideSTIS:
             plt.plot(self.waveSTIS,self.fluxSTIS*self.sfSTIS,label='Scaled STIS Spectrum',linewidth=2,color='C2')
             plt.fill_between(self.waveSTIS,(self.fluxSTIS+self.errrSTIS)*self.sfSTIS,(self.fluxSTIS-self.errrSTIS)*self.sfSTIS,alpha=0.25,color='C2')
@@ -1776,11 +1910,12 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         OoM11=ax[1][1].yaxis.get_offset_text()
         OoM11.set_size(18)
         plt.xticks(rotation=30)
-        plt.show()
+        plt.draw()
         
         #2x3 diagnostic plot for the chosen line and fit
-        fig,ax=plt.subplots(3,2,sharex=True)
-        fig.text(0.5,0.01,'Wavelength ($\AA$)',ha='center',fontsize=20)
+        fig,ax=plt.subplots(3,2,sharex=True,figsize=(16,9),layout='tight')
+        fig.canvas.manager.set_window_title(self.plotStarname+'_'+self.lineLabel+'_Diagnostic')
+        fig.supxlabel('Wavelength ($\AA$)',fontsize=20)
         fig.suptitle(self.plotStarname+' Diagnostics: '+self.lineLabel,fontsize=26)
         plt.sca(ax[0][0])
         plt.semilogy(self.waveCOS,self.fluxNorm,linewidth=2.2,color='C0')
@@ -1811,7 +1946,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             ax[1][0].set_title('STIS - COS Residuals (No STIS Data)',fontsize=18)
         plt.axhline(0.0,linewidth=2,linestyle='--',color='k')
         plt.xlim(self.currentRange[0],self.currentRange[1])
-        plt.ylabel('Flux (erg $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)',fontsize=14)
+        plt.ylabel('Flux Density (erg $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)',fontsize=14)
         ax[1][0].tick_params(labelsize=16)
         ax[1][0].yaxis.set_ticks_position('both')
         OoM10=ax[1][0].yaxis.get_offset_text()
@@ -1822,7 +1957,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         ax[1][1].set_title('COS - Best Fit Residuals',fontsize=18)
         plt.axhline(0.0,linewidth=2,linestyle='--',color='k')
         plt.xlim(self.currentRange[0],self.currentRange[1])
-        plt.ylabel('Flux (erg $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)',fontsize=14)
+        plt.ylabel('Flux Density (erg $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)',fontsize=14)
         ax[1][1].tick_params(labelsize=16)
         ax[1][1].yaxis.set_ticks_position('both')
         OoM11=ax[1][1].yaxis.get_offset_text()
@@ -1852,16 +1987,19 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         OoM21=ax[2][1].yaxis.get_offset_text()
         OoM21.set_size(18)
         plt.xticks(rotation=30)
-        plt.show()
+        plt.draw()
 
     def getTrue(self):         
         if not self.airglowRemoved[self.fitIndex]:
             #first time airglow is being removed for the line
+            if True in self.airglowRemoved: #if recovered profile has already been started for another line
+                self.removeMethod='More' #subtract more airglow from the spectrum, for another emission line
+            else:
+                self.removeMethod='New' #subtract airglow from the spectrum for the first time
             self.airglowRemoved[self.fitIndex]=True
             self.removalPlots.setDisabled(False)
             self.openBootstrap.setDisabled(False)
             self.saveData.setDisabled(False)
-            self.removeMethod='New'
         else:
             #check if the current line has had airglow removed already
             if self.airglowRemoved[self.fitIndex]:
@@ -1873,124 +2011,161 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 self.trueSpectrum,self.propError,self.removeFlux,self.airglError=self.recoverTrue(self.waveCOS,self.fluxCOS,self.errrCOS,self.pv[10]+self.allFitshifts[self.fitIndex],self.pv[11]*self.allFitscales[self.fitIndex],self.currentLine)
             else: #two part fitting
                 self.trueSpectrum,self.propError,self.removeFlux,self.airglError=self.oneSpectrum,self.oneError,self.oneRemove,self.oneRemerr
+        elif self.removeMethod=='More':
+            self.trueSpectrum,self.propError,self.removeFlux,self.airglError=self.recoverTrue(self.waveCOS,self.trueSpectrum,self.propError,self.pv[10]+self.allFitshifts[self.fitIndex],self.pv[11]*self.allFitscales[self.fitIndex],self.currentLine)
+        elif self.removeMethod=='Cancel':
+            pass #do not remove airglow if cancel is selected in the dialog window
         
-        #setup Y limits for the 2x2 plot
-        self.ymaxU=max(np.max(self.fluxCOS[self.allLinemasks[self.fitIndex]]),np.max(self.bestFit))
-        
-        if self.fitIndex!=0 and self.whichSTIS=='G':
-            self.overrideSTIS=True #No OI data for G140M
-        elif not self.readySTIS:
-            self.overrideSTIS=True 
-        else:
-            self.overrideSTIS=False
+        if self.removeMethod!='Cancel': #do not plot subtraction plots if airglow was not supposed to be subtracted
+            #setup Y limits for the 2x2 plot
+            self.ymaxU=max(np.max(self.fluxCOS[self.allLinemasks[self.fitIndex]]),np.max(self.bestFit))
             
-        if self.readySTIS and not self.overrideSTIS:
-            stisMask=((self.currentRange[0]<=self.waveSTIS)&(self.waveSTIS<=self.currentRange[1]))
-            self.ymaxL=max(np.max((self.fluxSTIS*self.sfSTIS)[stisMask]),np.max(self.fluxSTIS[stisMask]),np.max(self.trueSpectrum[self.allLinemasks[self.fitIndex]]))
-        else:
-            self.ymaxL=np.max(self.trueSpectrum[self.allLinemasks[self.fitIndex]])
+            if self.fitIndex!=0 and self.whichSTIS=='G':
+                self.overrideSTIS=True #No OI data for G140M
+            elif not self.readySTIS:
+                self.overrideSTIS=True
+            else:
+                self.overrideSTIS=False
+                
+            if self.readySTIS and not self.overrideSTIS:
+                stisMask=((self.currentRange[0]<=self.waveSTIS)&(self.waveSTIS<=self.currentRange[1]))
+                self.ymaxL=max(np.max((self.fluxSTIS*self.sfSTIS)[stisMask]),np.max(self.fluxSTIS[stisMask]),np.max(self.trueSpectrum[self.allLinemasks[self.fitIndex]]))
+            else:
+                self.ymaxL=np.max(self.trueSpectrum[self.allLinemasks[self.fitIndex]])
+                
+            #setup for diagnostics
+            #need to figure out how to deal with dividing by zero in fluxNorm and compNorm, likely also diffNorm
+            self.fluxNorm=self.fluxCOS/self.errrCOS
+            self.bestInterp=np.interp(self.waveCOS,self.waveCOS[self.allLinemasks[self.fitIndex]]+self.allFitshifts[self.fitIndex],self.bestFit,left=0.0,right=0.0)
+            if self.whichFit==1:
+                self.fluxfitDiff=self.fluxCOS-self.bestInterp
+                self.compNorm=self.fluxfitDiff/self.errrCOS
+            else:
+                self.fluxfitDiff=self.trueSpectrum-self.bestInterp
+                self.compNorm=self.fluxfitDiff/self.propError
+            self.compMin=np.min(self.fluxfitDiff[self.allLinemasks[self.fitIndex]])
+            self.compMax=np.max(self.fluxfitDiff[self.allLinemasks[self.fitIndex]])
+            if self.readySTIS and not self.overrideSTIS:
+                self.trueInterp=np.interp(self.waveSTIS,self.waveCOS,self.trueSpectrum)
+                self.stistrueDiff=(self.fluxSTIS*self.sfSTIS)-self.trueInterp
+                self.diffNorm=self.stistrueDiff/(self.errrSTIS*self.sfSTIS)
+                self.diffMin=np.min(self.stistrueDiff[stisMask])
+                self.diffMax=np.max(self.stistrueDiff[stisMask])
+                
+            self.plotSubtraction()
             
-        #setup for diagnostics
-        #need to figure out how to deal with dividing by zero in fluxNorm and compNorm, likely also diffNorm
-        self.fluxNorm=self.fluxCOS/self.errrCOS
-        self.bestInterp=np.interp(self.waveCOS,self.waveCOS[self.allLinemasks[self.fitIndex]]+self.allFitshifts[self.fitIndex],self.bestFit,left=0.0,right=0.0)
-        if self.whichFit==1:
-            self.fluxfitDiff=self.fluxCOS-self.bestInterp
-            self.compNorm=self.fluxfitDiff/self.errrCOS
-        else:
-            self.fluxfitDiff=self.trueSpectrum-self.bestInterp
-            self.compNorm=self.fluxfitDiff/self.propError
-        self.compMin=np.min(self.fluxfitDiff[self.allLinemasks[self.fitIndex]])
-        self.compMax=np.max(self.fluxfitDiff[self.allLinemasks[self.fitIndex]])
-        if self.readySTIS and not self.overrideSTIS:
-            self.trueInterp=np.interp(self.waveSTIS,self.waveCOS,self.trueSpectrum)
-            self.stistrueDiff=(self.fluxSTIS*self.sfSTIS)-self.trueInterp
-            self.diffNorm=self.stistrueDiff/(self.errrSTIS*self.sfSTIS)
-            self.diffMin=np.min(self.stistrueDiff[stisMask])
-            self.diffMax=np.max(self.stistrueDiff[stisMask])
-            
-        self.plotSubtraction()
-        
-        #save components to their savefile prep arrays
-        self.finalLinemasks[self.fitIndex]=self.allLinemasks[self.fitIndex] #keep what was used for the subtraction
-        self.finalWaveinfs[self.fitIndex]=self.allWaveinfs[self.fitIndex] #keep what was used for the subtraction
-        self.finalStellar[self.fitIndex]=self.stellarComp       
-        self.finalStelerr[self.fitIndex]=self.intProferr #upper and lower
-        self.finalReversal[self.fitIndex]=self.selfreversalComp
-        self.finalISM[self.fitIndex]=self.ismComp
-        self.finalAirglow[self.fitIndex]=self.removeFlux
-        self.finalAirgerr[self.fitIndex]=self.airglError
-        self.finalParams[self.fitIndex]=self.fitParams
-        self.finalBest[self.fitIndex]=self.bestFit
-        self.finalBesterr[self.fitIndex]=self.intBesterr #upper and lower
-        self.finalIfluxrecv[self.fitIndex]=self.intRecover
-        self.finalIfluxstel[self.fitIndex]=self.intStellar
-        self.finalIfluxserr[self.fitIndex]=self.intStelerr #upper and lower
-        self.finalFitmode[self.fitIndex]=self.whichFit
-        self.finalAirmode[self.fitIndex]=self.whichAir
-        self.finalCutoffs[self.fitIndex]=self.allCutoffs[self.fitIndex]
-        self.finalUshifts[self.fitIndex]=self.allShifts[self.fitIndex]
-        self.finalUscales[self.fitIndex]=self.allScales[self.fitIndex]
-        self.finalUfitshifts[self.fitIndex]=self.allFitshifts[self.fitIndex]
-        self.finalUfitscales[self.fitIndex]=self.allFitscales[self.fitIndex]
-        self.finalRadial[self.fitIndex]=self.radVelocity
-        self.finalRadism[self.fitIndex]=self.radISMVelocity
-        #all bootstrap related final saves are handled internally in the bootstrap class
+            #save components to their savefile prep arrays
+            self.finalLinemasks[self.fitIndex]=self.allLinemasks[self.fitIndex] #keep what was used for the subtraction
+            self.finalWaveinfs[self.fitIndex]=self.allWaveinfs[self.fitIndex] #keep what was used for the subtraction
+            self.finalStellar[self.fitIndex]=self.stellarComp       
+            self.finalStelerr[self.fitIndex]=self.intProferr #upper and lower
+            self.finalReversal[self.fitIndex]=self.selfreversalComp
+            self.finalISM[self.fitIndex]=self.ismComp
+            self.finalAirglow[self.fitIndex]=self.removeFlux
+            self.finalAirgerr[self.fitIndex]=self.airglError
+            self.finalParams[self.fitIndex]=[self.pv,self.pe]
+            self.finalBest[self.fitIndex]=self.bestFit
+            self.finalBesterr[self.fitIndex]=self.intBesterr #upper and lower
+            self.finalIfluxrecv[self.fitIndex]=self.intRecover
+            self.finalIfluxstel[self.fitIndex]=self.intStellar
+            self.finalIfluxserr[self.fitIndex]=self.intStelerr #upper and lower
+            self.finalFitmode[self.fitIndex]=self.whichFit
+            self.finalAirmode[self.fitIndex]=self.whichAir
+            self.finalCutoffs[self.fitIndex]=self.allCutoffs[self.fitIndex]
+            self.finalUshifts[self.fitIndex]=self.allShifts[self.fitIndex]
+            self.finalUscales[self.fitIndex]=self.allScales[self.fitIndex]
+            self.finalUfitshifts[self.fitIndex]=self.allFitshifts[self.fitIndex]
+            self.finalUfitscales[self.fitIndex]=self.allFitscales[self.fitIndex]
+            self.finalRadial[self.fitIndex]=self.radVelocity
+            self.finalRadism[self.fitIndex]=self.radISMVelocity
+            #all bootstrap related final saves are handled internally in the bootstrap class
         
     def readyRRCBB(self):
         self.dialogBoot=bootstrapWindow()
-        self.dialogBoot.exec() #self'd so that I can access its variables
+        self.dialogBoot.exec() 
         
     def formatParams(self,paralists,rcberrors):
         paramNames=['Line Center (Å)','Stellar Radial Velocity (km/s)','Gaussian FWHM (km/s)','Lorentzian FWHM (km/s)','Flux Amplitude (10^x)','Self Reversal FWHM (km/s)','Self Reversal Depth Fraction','Column Density (10^x cm^-2)','ISM Radial Velocity (km/s)','Doppler b Parameter (km/s)','Shift (Å)','Scale']
         
         #LyA parameters
         try:
-            paramsLyA,errorsLyA=self.extractParam(paralists[0])
-            errorpLyA=errormLyA=errorsLyA
+            paramsLyA,errorsLyA=paralists[0]
+            if np.all(errorsLyA)==None:
+                errorpLyA=['N/A']*12
+                errormLyA=['N/A']*12
+            else:
+                errorpLyA=errormLyA=errorsLyA
         except:
             paramsLyA=['N/A']*12 #12 is the number of parameters, as all fits report 12 now
             errorpLyA=['N/A']*12
             errormLyA=['N/A']*12
+            
         if self.finalEmethod[0]=='RRCBB': #override with RRCBB errors
             errorpLyA=rcberrors[0][0]
             errormLyA=rcberrors[0][1]
+            if self.finalFitmode[0]==2: #reoverride the airglow errors in 2 part fitting
+                errorpLyA[10]=errormLyA[10]=errorsLyA[10]
+                errorpLyA[11]=errormLyA[11]=errorsLyA[11]
             
         #OI 1302 parameters
         try:
-            paramsOI2,errorsOI2=self.extractParam(paralists[1])
-            errorpOI2=errormOI2=errorsOI2
+            paramsOI2,errorsOI2=paralists[1]
+            if np.all(errorsOI2)==None:
+                errorpOI2=['N/A']*12
+                errormOI2=['N/A']*12
+            else:
+                errorpOI2=errormOI2=errorsOI2
         except:
             paramsOI2=['N/A']*12
             errorpOI2=['N/A']*12
             errormOI2=['N/A']*12
+            
         if self.finalEmethod[1]=='RRCBB': #override with RRCBB errors
             errorpOI2=rcberrors[1][0]
             errormOI2=rcberrors[1][1]
+            if self.finalFitmode[1]==2: #reoverride the airglow errors in 2 part fitting
+                errorpOI2[10]=errormOI2[10]=errorsOI2[10]
+                errorpOI2[11]=errormOI2[11]=errorsOI2[11]
             
         #OI 1305 parameters
         try:
-            paramsOI5,errorsOI5=self.extractParam(paralists[2])
-            errorpOI5=errormOI5=errorsOI5
+            paramsOI5,errorsOI5=paralists[2]
+            if np.all(errorsOI5)==None:
+                errorpOI5=['N/A']*12
+                errormOI5=['N/A']*12
+            else:
+                errorpOI5=errormOI5=errorsOI5
         except:
             paramsOI5=['N/A']*12
             errorpOI5=['N/A']*12
             errormOI5=['N/A']*12
+            
         if self.finalEmethod[2]=='RRCBB': #override with RRCBB errors
             errorpOI5=rcberrors[2][0]
             errormOI5=rcberrors[2][1]
+            if self.finalFitmode[2]==2: #reoverride the airglow errors in 2 part fitting
+                errorpOI5[10]=errormOI5[10]=errorsOI5[10]
+                errorpOI5[11]=errormOI5[11]=errorsOI5[11]
             
         #OI 1306 parameters
         try:
-            paramsOI6,errorsOI6=self.extractParam(paralists[3])
-            errorpOI6=errormOI6=errorsOI6
+            paramsOI6,errorsOI6=paralists[3]
+            if np.all(errorsOI6)==None:
+                errorpOI6=['N/A']*12
+                errormOI6=['N/A']*12
+            else:
+                errorpOI6=errormOI6=errorsOI6
         except:
             paramsOI6=['N/A']*12
             errorpOI6=['N/A']*12
             errormOI6=['N/A']*12
+            
         if self.finalEmethod[3]=='RRCBB': #override with RRCBB errors
             errorpOI6=rcberrors[3][0]
             errormOI6=rcberrors[3][1]
+            if self.finalFitmode[3]==2: #reoverride the airglow errors in 2 part fitting
+                errorpOI6[10]=errormOI6[10]=errorsOI6[10]
+                errorpOI6[11]=errormOI6[11]=errorsOI6[11]
             
         formatLines=[]
         for x in range(0,12): #they will all have length 12 no matter what
@@ -2008,8 +2183,11 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             revert=False
         interpInf=[]
         for i in range(0,len(infarray)):
-            tmparray=np.interp(self.waveCOS,infxvals,infarray[i],left=0,right=0)
-            interpInf.append(tmparray)
+            try:
+                tmparray=np.interp(self.waveCOS,infxvals,infarray[i],left=0,right=0)
+                interpInf.append(tmparray)
+            except:
+                interpInf.append(np.zeros(len(self.waveCOS))) #if None reported (or some other issue), put zero for the error
         if revert:
             return np.array(interpInf[0])
         else:
@@ -2041,7 +2219,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             self.finalIfluxserr=[[0,0] if isinstance(ff,bool) else ff for ff in self.finalIfluxserr]
             self.finalFitmode=['N/A' if isinstance(aa,bool) else aa for aa in self.finalFitmode]
             self.finalAirmode=['N/A' if isinstance(f,bool) else f for f in self.finalAirmode]
-            self.finalEmethod=['LMFIT' if isinstance(g,bool) and g==False else 'RRCBB' for g in self.finalEmethod]
+            self.finalEmethod=['RRCBB' if isinstance(g,bool) and g==True else 'LMFIT' for g in self.finalEmethod]
             self.finalCutoffs=['N/A' if isinstance(h,bool) else h for h in self.finalCutoffs]
             self.finalUshifts=['N/A' if isinstance(z,bool) else z for z in self.finalUshifts]
             self.finalUscales=['N/A' if isinstance(a,bool) else a for a in self.finalUscales]
@@ -2060,44 +2238,54 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             #get parameters formatted to be put into the csv easily
             formattedParams=self.formatParams(self.finalParams,self.finalRCBpae)
             #for now, make new variables with LMFIT flux errors or RRCBB flux errors if it was done for the line 
-            bestproferr=[]
-            starproferr=[]
-            starerr=[]
+            self.bestproferr=[]
+            self.starproferr=[]
+            self.starerr=[]
             for gg in range(0,len(self.finalEmethod)):
                 if self.finalEmethod[gg]=='RRCBB':
-                    bestproferr.append(self.formatInf(self.waveCOS[self.finalLinemasks[gg]],self.finalRCBbfe[gg]))
-                    starproferr.append(self.formatInf(self.finalWaveinfs[gg],np.array(self.finalRCBsce[gg])))
-                    starerr.append(self.finalRCBsie[gg])
+                    self.bestproferr.append(self.formatInf(self.waveCOS[self.finalLinemasks[gg]],self.finalRCBbfe[gg]))
+                    self.starproferr.append(self.formatInf(self.finalWaveinfs[gg],np.array(self.finalRCBsce[gg])))
+                    self.starerr.append(self.finalRCBsie[gg])
                 else:
-                    bestproferr.append(self.finalBesterr[gg])
-                    starproferr.append(self.finalStelerr[gg])
-                    starerr.append(self.finalIfluxserr[gg])                    
-            
+                    if len(self.finalStelerr[gg])==2: 
+                        self.bestproferr.append(self.finalBesterr[gg])
+                        self.starproferr.append(self.finalStelerr[gg])
+                    else:
+                        self.bestproferr.append([self.finalBesterr[gg],self.finalBesterr[gg]])
+                        self.starproferr.append([self.finalStelerr[gg],self.finalStelerr[gg]])
+                    self.starerr.append(self.finalIfluxserr[gg]) 
+            #format some of the values for the additional data csv
+            self.finalFitmode=['One Part' if aa==1 else aa for aa in self.finalFitmode]
+            self.finalFitmode=['Two Part' if aa==2 else aa for aa in self.finalFitmode]
+            self.finalAirmode=['Automatic' if f==0 else f for f in self.finalAirmode]
+            self.finalAirmode=['Manual' if f==1 else f for f in self.finalAirmode]
             
             #save two CSV files (use xlsxwriter in the future to save two tabs into an excel spreadsheet)
             name2=QtWidgets.QFileDialog.getSaveFileName(self,'Save File','','CSV(*.csv)')
-            if name2[0]:
-                with open(name2[0], mode='w') as dataline: #wavelength, flux, and error arrays
-                    line=csv.writer(dataline, delimiter=',')
-                    line.writerow(['Wavelength (Å)','Recovered Flux (erg cm^-2 s^-1 Å^-1)','Recovered Error (erg cm^-2 s^-1 Å^-1)','LyA Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','LyA Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','LyA Modeled SR Attenuated Flux + Error (erg cm^-2 s^-1 Å^-1)','LyA Modeled SR Attenuated Flux - Error (erg cm^-2 s^-1 Å^-1)', 'LyA Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','LyA Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','LyA Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','LyA Best Fit (erg cm^-2 s^-1 Å^-1)','LyA Best Fit + Error (erg cm^-2 s^-1 Å^-1)','LyA Best Fit - Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR Attenuated Flux + Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR Attenuated Flux - Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Best Fit (erg cm^-2 s^-1 Å^-1)','OI 1302 Best Fit + Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Best Fit - Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR Attenuated Flux + Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR Attenuated Flux - Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Best Fit (erg cm^-2 s^-1 Å^-1)','OI 1305 Best Fit + Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Best Fit - Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR Attenuated Flux + Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR Attenuated Flux - Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Best Fit (erg cm^-2 s^-1 Å^-1)','OI 1306 Best Fit + Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Best Fit - Error (erg cm^-2 s^-1 Å^-1)'])
+            if name2[0][-4:]!='.csv': #some linux distributions do not append the file extension (may be related to no 'All' option)
+                name2=(name2[0]+'.csv',name2[1]) #tuple is immutable, can't append .csv to name2[0]
+            if name2[0]: #utf-16 to display Å and α properly, and newline='' fixes line skipping in the csv, '\t' allows for csv.write to work with utf-16
+                with open(name2[0],mode='w',encoding='utf-16',newline='') as dataline: #wavelength, flux, and error arrays
+                    line=csv.writer(dataline, delimiter='\t')
+                    line.writerow(['Wavelength (Å)','Recovered Flux (erg cm^-2 s^-1 Å^-1)','Recovered Error (erg cm^-2 s^-1 Å^-1)','Lyα Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','Lyα Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','Lyα Modeled SR Attenuated Flux + Error (erg cm^-2 s^-1 Å^-1)','Lyα Modeled SR Attenuated Flux - Error (erg cm^-2 s^-1 Å^-1)', 'Lyα Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','Lyα Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','Lyα Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','Lyα Best Fit (erg cm^-2 s^-1 Å^-1)','Lyα Best Fit + Error (erg cm^-2 s^-1 Å^-1)','Lyα Best Fit - Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR Attenuated Flux + Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR Attenuated Flux - Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Best Fit (erg cm^-2 s^-1 Å^-1)','OI 1302 Best Fit + Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Best Fit - Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR Attenuated Flux + Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR Attenuated Flux - Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Best Fit (erg cm^-2 s^-1 Å^-1)','OI 1305 Best Fit + Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Best Fit - Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR Attenuated Flux + Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR Attenuated Flux - Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Best Fit (erg cm^-2 s^-1 Å^-1)','OI 1306 Best Fit + Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Best Fit - Error (erg cm^-2 s^-1 Å^-1)'])
                     for s in range(0,len(self.waveCOS)):
-                        line.writerow([self.waveCOS[s],self.trueSpectrum[s],               self.propError[s],                      self.finalStellar[0][s],                         self.finalReversal[0][s],                              starproferr[0][0][s],                                           starproferr[0][1][s],                                          self.finalISM[0][s],                                         self.finalAirglow[0][s],                         self.finalAirgerr[0][s],                          self.finalBest[0][s],                bestproferr[0][0][s],                        bestproferr[0][1][s],                        self.finalStellar[1][s],                             self.finalReversal[1][s],                                  starproferr[1][0][s],                                              starproferr[1][1][s],                                              self.finalISM[1][s],                                             self.finalAirglow[1][s],                             self.finalAirgerr[1][s],                              self.finalBest[1][s],                    bestproferr[1][0][s],                            bestproferr[1][1][s],                            self.finalStellar[2][s],                             self.finalReversal[2][s],                                  starproferr[2][0][s],                                              starproferr[2][1][s],                                              self.finalISM[2][s],                                             self.finalAirglow[2][s],                             self.finalAirgerr[2][s],                              self.finalBest[2][s],                    bestproferr[2][0][s],                            bestproferr[2][1][s],                            self.finalStellar[3][s],                             self.finalReversal[3][s],                                  starproferr[3][0][s],                                              starproferr[3][1][s],                                              self.finalISM[3][s],                                             self.finalAirglow[3][s],                             self.finalAirgerr[3][s],                             self.finalBest[3][s],                     bestproferr[3][0][s],                            bestproferr[3][1][s]])
-                with open(name2[0][:-4]+'-Additional Data.csv',mode='w') as dataline: #best fit parameters and user inputs
-                    line=csv.writer(dataline,delimiter=',')
-                    line.writerow(['Parameter','LyA Value','LyA Value + Error','LyA Value - Error','OI 1302 Value','OI 1302 Value + Error','OI 1302 Value - Error','OI 1305 Value','OI 1305 Value + Error','OI 1305 Value - Error','OI 1306 Value','OI 1306 Value + Error','OI 1306 Value - Error'])
+                        line.writerow([self.waveCOS[s],self.trueSpectrum[s],               self.propError[s],                      self.finalStellar[0][s],                         self.finalReversal[0][s],                              self.starproferr[0][0][s],                                      self.starproferr[0][1][s],                                     self.finalISM[0][s],                                         self.finalAirglow[0][s],                         self.finalAirgerr[0][s],                          self.finalBest[0][s],                self.bestproferr[0][0][s],                   self.bestproferr[0][1][s],                   self.finalStellar[1][s],                             self.finalReversal[1][s],                                  self.starproferr[1][0][s],                                         self.starproferr[1][1][s],                                         self.finalISM[1][s],                                             self.finalAirglow[1][s],                             self.finalAirgerr[1][s],                              self.finalBest[1][s],                    self.bestproferr[1][0][s],                       self.bestproferr[1][1][s],                       self.finalStellar[2][s],                             self.finalReversal[2][s],                                  self.starproferr[2][0][s],                                         self.starproferr[2][1][s],                                         self.finalISM[2][s],                                             self.finalAirglow[2][s],                             self.finalAirgerr[2][s],                              self.finalBest[2][s],                    self.bestproferr[2][0][s],                       self.bestproferr[2][1][s],                       self.finalStellar[3][s],                             self.finalReversal[3][s],                                  self.starproferr[3][0][s],                                         self.starproferr[3][1][s],                                         self.finalISM[3][s],                                             self.finalAirglow[3][s],                             self.finalAirgerr[3][s],                             self.finalBest[3][s],                     self.bestproferr[3][0][s],                       self.bestproferr[3][1][s]])
+                with open(name2[0][:-4]+'-Additional Data.csv',mode='w',encoding='utf-16',newline='') as dataline: #best fit parameters and user inputs
+                    line=csv.writer(dataline,delimiter='\t')
+                    line.writerow(['Parameter','Lyα Value','Lyα Value + Error','Lyα Value - Error','OI 1302 Value','OI 1302 Value + Error','OI 1302 Value - Error','OI 1305 Value','OI 1305 Value + Error','OI 1305 Value - Error','OI 1306 Value','OI 1306 Value + Error','OI 1306 Value - Error'])
                     for y in range(0,len(formattedParams)):
                         line.writerow(formattedParams[y])
                     line.writerow(['','','']) #separator
-                    line.writerow(['Integrated Fluxes','LyA Flux','LyA Flux + Error','LyA Flux - Error','OI2 Flux','OI2 Flux + Error','OI2 Flux - Error','OI5 Flux','OI5 Flux + Error','OI5 Flux - Error','OI6 Flux','OI6 Flux + Error','OI6 Flux - Error']) 
-                    line.writerow(['Stellar Flux',self.finalIfluxstel[0],starerr[0][0],starerr[0][1],self.finalIfluxstel[1],starerr[1][0],starerr[1][1],self.finalIfluxstel[2],starerr[2][0],starerr[2][1],self.finalIfluxstel[3],starerr[3][0],starerr[3][1]])
+                    line.writerow(['Integrated Fluxes','Lyα Flux','Lyα Flux + Error','Lyα Flux - Error','OI2 Flux','OI2 Flux + Error','OI2 Flux - Error','OI5 Flux','OI5 Flux + Error','OI5 Flux - Error','OI6 Flux','OI6 Flux + Error','OI6 Flux - Error']) 
+                    line.writerow(['Stellar Flux',self.finalIfluxstel[0],self.starerr[0][0],self.starerr[0][1],self.finalIfluxstel[1],self.starerr[1][0],self.starerr[1][1],self.finalIfluxstel[2],self.starerr[2][0],self.starerr[2][1],self.finalIfluxstel[3],self.starerr[3][0],self.starerr[3][1]])
                     line.writerow(['Recovered Flux',self.finalIfluxrecv[0],'N/A','N/A',self.finalIfluxrecv[1],'N/A','N/A',self.finalIfluxrecv[2],'N/A','N/A',self.finalIfluxrecv[3],'N/A','N/A'])
                     line.writerow(['','','']) #separator
-                    line.writerow(['Fit Information','LyA','OI 1302','OI 1305','OI 1306'])
+                    line.writerow(['Fit Information','Lyα','OI 1302','OI 1305','OI 1306'])
                     line.writerow(['Fit Mode',self.finalFitmode[0],self.finalFitmode[1],self.finalFitmode[2],self.finalFitmode[3]])
                     line.writerow(['Airglow Mode',self.finalAirmode[0],self.finalAirmode[1],self.finalAirmode[2],self.finalAirmode[3]])
                     line.writerow(['Parameter Errors',self.finalEmethod[0],self.finalEmethod[1],self.finalEmethod[2],self.finalEmethod[3]])
                     line.writerow(['','','']) #separator
-                    line.writerow(['User Input','LyA Input','OI 1302 Input','OI 1305 Input','OI 1306 Input'])
+                    line.writerow(['User Input','Lyα Input','OI 1302 Input','OI 1305 Input','OI 1306 Input'])
                     line.writerow(['Initial Guess Shift',self.finalUshifts[0],self.finalUshifts[1],self.finalUshifts[2],self.finalUshifts[3]])
                     line.writerow(['Initial Guess Scale',self.finalUscales[0],self.finalUscales[1],self.finalUscales[2],self.finalUscales[3]])
                     line.writerow(['Best Fit Shift',self.finalUfitshifts[0],self.finalUfitshifts[1],self.finalUfitshifts[2],self.finalUfitshifts[3]])
@@ -2108,14 +2296,14 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                     line.writerow(['Range Max',str(self.rangeLyA[1]),str(self.rangeOI2[1]),str(self.rangeOI5[1]),str(self.rangeOI6[1])])
                     line.writerow(['N. Residual Cutoffs',self.finalCutoffs[0],self.finalCutoffs[1],self.finalCutoffs[2],self.finalCutoffs[3]])
                     line.writerow(['','','']) #separator
-                    line.writerow(['Bootstrap Information','LyA','OI 1302','OI 1305','OI 1306'])
+                    line.writerow(['Bootstrap Information','Lyα','OI 1302','OI 1305','OI 1306'])
                     line.writerow(['Block Length',self.finalOptlen[0],self.finalOptlen[1],self.finalOptlen[2],self.finalOptlen[3]])
                     line.writerow(['Number of Blocks',self.finalNumblk[0],self.finalNumblk[1],self.finalNumblk[2],self.finalNumblk[3]])
                     line.writerow(['Number of Parameters',self.finalNumpar[0],self.finalNumpar[1],self.finalNumpar[2],self.finalNumpar[3]])
                     line.writerow(['Number of Samples',self.finalNumsmp[0],self.finalNumsmp[1],self.finalNumsmp[2],self.finalNumsmp[3]])
                     line.writerow(['Bootstrap Elapsed Time (s)',self.finalDeltaT[0],self.finalDeltaT[1],self.finalDeltaT[2],self.finalDeltaT[3]])
 
-                bootLabel=['LyA','OI2','OI5','OI6']
+                bootLabel=['Lyα','OI2','OI5','OI6'] 
                 for hh in range(0,len(self.bootDone)):
                     if self.bootDone[hh]: #only make these files if a bootstrap was performed
                         oneBoot={}
@@ -2126,13 +2314,13 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         
     def closeEvent(self,event):
         QtWidgets.QApplication.quit()
-        #grants access back to the spyder console
+        #grants access back to the console
         
 class missingWindow(QtWidgets.QDialog,UiFillWindow):
     def __init__(self):
         super(missingWindow,self).__init__()
         self.setupUi(self)
-        self.setWindowIcon(QtGui.QIcon('3x3 icon.png')) 
+        self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
         self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
         
         #star name lineEdit
@@ -2243,7 +2431,7 @@ class missingWindow2(QtWidgets.QDialog,UiFillWindow2):
     def __init__(self):
         super(missingWindow2,self).__init__()
         self.setupUi(self)
-        self.setWindowIcon(QtGui.QIcon('3x3 icon.png'))
+        self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
         self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
 
         #special conditions checkboxes
@@ -2309,7 +2497,7 @@ class rangeWindow(QtWidgets.QDialog,UiRangeWindow):
     def __init__(self):
         super(rangeWindow,self).__init__()
         self.setupUi(self)
-        self.setWindowIcon(QtGui.QIcon('3x3 icon.png')) 
+        self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
         self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
         
         #initialize values in the user input boxes
@@ -2375,6 +2563,8 @@ class rangeWindow(QtWidgets.QDialog,UiRangeWindow):
     def applyNew(self):
         minmaxCheck=[self.minLyAtemp,self.maxLyAtemp,self.minOI2temp,self.maxOI2temp,self.minOI5temp,self.maxOI5temp,self.minOI6temp,self.maxOI6temp]
         allGood=True #assume everything looks good, then check if this is actually true
+        
+        #first, check if inputs can be interpreted properly, and if min<max is true for each line
         for i in range(0,len(minmaxCheck)):
             try:
                 float(minmaxCheck[i])
@@ -2389,16 +2579,51 @@ class rangeWindow(QtWidgets.QDialog,UiRangeWindow):
                     if badRange==QtWidgets.QMessageBox.Ok:
                         allGood=False
                         break
+                    
+        #then, check if the OI lines can be selected 
+        lmOI2=((float(self.minOI2temp)<=GUI.waveCOS)&(GUI.waveCOS<=float(self.maxOI2temp))) #line mask
+        fwOI2=1.0/GUI.errrCOS[lmOI2] #fit weights
+        if np.any(fwOI2==np.inf):
+            disableOI2=True #wait to disable the line until the end, after ensuring that everything is all good
+            if GUI.currentLine==2:#only prevent the user from leaving this window if this is the currently selected line
+                badOxygen=QtWidgets.QMessageBox.warning(self,'OI 1302 Contains Bad Flux Errors','The OI 1302 wavelength range contains flux error\nvalues that are zero, please edit the line range!',QtWidgets.QMessageBox.Ok)
+                if badOxygen==QtWidgets.QMessageBox.Ok:
+                    allGood=False
+        else:
+            disableOI2=False
+        lmOI5=((float(self.minOI5temp)<=GUI.waveCOS)&(GUI.waveCOS<=float(self.maxOI5temp))) #line mask
+        fwOI5=1.0/GUI.errrCOS[lmOI5] #fit weights
+        if np.any(fwOI5==np.inf):
+            disableOI5=True
+            if GUI.currentLine==5:
+                badOxygen=QtWidgets.QMessageBox.warning(self,'OI 1305 Contains Bad Flux Errors','The OI 1305 wavelength range contains flux error\nvalues that are zero, please edit the line range!',QtWidgets.QMessageBox.Ok)
+                if badOxygen==QtWidgets.QMessageBox.Ok:
+                    allGood=False
+        else:
+            disableOI5=False
+        lmOI6=((float(self.minOI6temp)<=GUI.waveCOS)&(GUI.waveCOS<=float(self.maxOI6temp))) #line mask
+        fwOI6=1.0/GUI.errrCOS[lmOI6] #fit weights
+        if np.any(fwOI6==np.inf):
+            disableOI6=True
+            if GUI.currentLine==6:
+                badOxygen=QtWidgets.QMessageBox.warning(self,'OI 1306 Contains Bad Flux Errors','The OI 1306 wavelength range contains flux error\nvalues that are zero, please edit the line range!',QtWidgets.QMessageBox.Ok)
+                if badOxygen==QtWidgets.QMessageBox.Ok:
+                    allGood=False  
+        else:
+            disableOI6=False
                         
         if allGood:
+            #update range labels and lists to reflect new values
             GUI.rangeLyA=[float(self.minLyAtemp),float(self.maxLyAtemp)]
-            GUI.labelLyA.setText('      LyA Range: '+str(GUI.rangeLyA[0])+' - '+str(GUI.rangeLyA[1])+' Å')
+            GUI.labelLyA.setText('      Lyα Range: '+str(GUI.rangeLyA[0])+' - '+str(GUI.rangeLyA[1])+' Å')
             GUI.rangeOI2=[float(self.minOI2temp),float(self.maxOI2temp)]
             GUI.labelOI2.setText('OI 1302 Range: '+str(GUI.rangeOI2[0])+' - '+str(GUI.rangeOI2[1])+' Å') 
             GUI.rangeOI5=[float(self.minOI5temp),float(self.maxOI5temp)]
             GUI.labelOI5.setText('OI 1305 Range: '+str(GUI.rangeOI5[0])+' - '+str(GUI.rangeOI5[1])+' Å') 
             GUI.rangeOI6=[float(self.minOI6temp),float(self.maxOI6temp)]
             GUI.labelOI6.setText('OI 1306 Range: '+str(GUI.rangeOI6[0])+' - '+str(GUI.rangeOI6[1])+' Å') 
+            
+            #update the plot display for the currently selected line
             if GUI.fitIndex==0:
                 GUI.displayPlot(GUI.rangeLyA)
                 GUI.currentRange=GUI.rangeLyA
@@ -2412,6 +2637,7 @@ class rangeWindow(QtWidgets.QDialog,UiRangeWindow):
                 GUI.displayPlot(GUI.rangeOI6)
                 GUI.currentRange=GUI.rangeOI6  
                 
+            #if a fit currently exists, redo the fit with the new wavelength range
             if GUI.fitExists:
                 GUI.prepareLSF() #make sure the LSF is created for the correct waveInf
                 if GUI.whichFit==1:
@@ -2419,7 +2645,27 @@ class rangeWindow(QtWidgets.QDialog,UiRangeWindow):
                 else:
                     GUI.runModel2() #rerun models with new range and waveInf
                 GUI.displayPlot(GUI.currentRange)
-            
+                
+            #disable/enable any oxygen lines that require it
+            if disableOI2:
+                GUI.radioOI2.setDisabled(True)
+                GUI.radioOI2.setToolTip('The current wavelength range for this line contains flux error values that are zero, try editing the line range')
+            else:
+                GUI.radioOI2.setDisabled(False)
+                GUI.radioOI2.setToolTip('')
+            if disableOI5:
+                GUI.radioOI5.setDisabled(True)
+                GUI.radioOI5.setToolTip('The current wavelength range for this line contains flux error values that are zero, try editing the line range')
+            else:
+                GUI.radioOI5.setDisabled(False)
+                GUI.radioOI5.setToolTip('')
+            if disableOI6:
+                GUI.radioOI6.setDisabled(True)
+                GUI.radioOI6.setToolTip('The current wavelength range for this line contains flux error values that are zero, try editing the line range')
+            else:
+                GUI.radioOI6.setDisabled(False)
+                GUI.radioOI6.setToolTip('')        
+
             self.close()
             
     def cancelNew(self):
@@ -2429,7 +2675,7 @@ class stisWindow(QtWidgets.QMainWindow,UiStisWindow):
     def __init__(self):
         super(stisWindow,self).__init__()
         self.setupUi(self)
-        self.setWindowIcon(QtGui.QIcon('3x3 icon.png')) 
+        self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
         self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
         
         #matplotlib toolbar, wasn't supported in QDialog so I made this a QMainWindow
@@ -2508,13 +2754,13 @@ class stisWindow(QtWidgets.QMainWindow,UiStisWindow):
         self.MplWidgetSTIS.canvas.axes.clear()
         self.MplWidgetSTIS.canvas.axes.set_title(GUI.plotStarname+' STIS Data')
         if GUI.fitExists:
-            self.MplWidgetSTIS.canvas.axes.plot(GUI.waveCOS,self.tempRecov,color='C0',linewidth=2,label='Recovered COS Spectrum')
-            self.MplWidgetSTIS.canvas.axes.fill_between(GUI.waveCOS,self.tempRecov+self.tempError,self.tempRecov-self.tempError,color='C0',alpha=0.4)
+            self.MplWidgetSTIS.canvas.axes.plot(GUI.waveCOS,self.tempRecov,color='C9',linewidth=2,label='Recovered COS Spectrum')
+            self.MplWidgetSTIS.canvas.axes.fill_between(GUI.waveCOS,self.tempRecov+self.tempError,self.tempRecov-self.tempError,color='C9',alpha=0.4)
             self.MplWidgetSTIS.canvas.axes.set_title(GUI.plotStarname+' Comparison to STIS Data with Current Parameters')
         self.MplWidgetSTIS.canvas.axes.plot(GUI.waveSTIS,GUI.fluxSTIS*self.scalix,color='C2',linewidth=2,label='STIS Spectrum')
         self.MplWidgetSTIS.canvas.axes.fill_between(GUI.waveSTIS,(GUI.fluxSTIS+GUI.errrSTIS)*self.scalix,(GUI.fluxSTIS-GUI.errrSTIS)*self.scalix,color='C2',alpha=0.25)
         self.MplWidgetSTIS.canvas.axes.set_xlabel('Wavelength ($\AA$)')
-        self.MplWidgetSTIS.canvas.axes.set_ylabel('Flux (erg $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)')
+        self.MplWidgetSTIS.canvas.axes.set_ylabel('Flux Density (erg $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)')
         self.MplWidgetSTIS.canvas.axes.set_xlim(self.stisXlim)
         self.MplWidgetSTIS.canvas.axes.set_ylim(self.stisYlim)
         self.MplWidgetSTIS.canvas.axes.legend()
@@ -2524,7 +2770,7 @@ class resultWindow(QtWidgets.QDialog,UiValsWindow):
     def __init__(self):
         super(resultWindow,self).__init__()
         self.setupUi(self)
-        self.setWindowIcon(QtGui.QIcon('3x3 icon.png')) 
+        self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
         self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
         
         if not GUI.bootDone[GUI.fitIndex]:
@@ -2555,7 +2801,7 @@ class resultWindow(QtWidgets.QDialog,UiValsWindow):
                 self.starfluxValue.setText('{:0.2e}'.format(GUI.intStellar)+' (no error reported)')
             self.recovfluxValue.setText('{:0.2e}'.format(GUI.intRecover))
             if GUI.readySTIS:
-                self.stisfluxValue.setText('{:0.2e}'.format(GUI.intSTISdat))#+' +/- '+self.prepErr(GUI.intSTISerr))
+                self.stisfluxValue.setText('{:0.2e}'.format(GUI.intSTISdat*GUI.sfSTIS))#+' +/- '+self.prepErr(GUI.intSTISerr))
         else:
             self.linecenValue.setText(str(round(GUI.pv[0],4))+' (fixed)')
             self.starvradValue.setText(str(round(GUI.pv[1],4))+' + '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][0][1])+' - '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][1][1]))
@@ -2600,7 +2846,7 @@ class residualWindow(QtWidgets.QMainWindow,UiResidWindow):
     def __init__(self):
         super(residualWindow,self).__init__()
         self.setupUi(self)
-        self.setWindowIcon(QtGui.QIcon('3x3 icon.png')) 
+        self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
         self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
         
         #matplotlib toolbar, wasn't supported in QDialog so I made this a QMainWindow
@@ -2666,7 +2912,7 @@ class residualWindow(QtWidgets.QMainWindow,UiResidWindow):
                 self.MplWidgetResid.canvas.axes1.fill_between(GUI.waveCOS[GUI.origmask]+GUI.allFitshifts[GUI.fitIndex],(GUI.origbest+GUI.origberr[0])*GUI.allFitscales[GUI.fitIndex],(GUI.origbest-GUI.origberr[1])*GUI.allFitscales[GUI.fitIndex],color='C2',alpha=0.25)
             except:
                 pass
-        self.MplWidgetResid.canvas.axes1.set_ylabel('Flux (erg $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)')
+        self.MplWidgetResid.canvas.axes1.set_ylabel('Flux Density (erg $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)')
         self.MplWidgetResid.canvas.axes1.set_xlim(self.cutXlim)
         self.MplWidgetResid.canvas.axes1.set_ylim(self.cutYlim)
         self.MplWidgetResid.canvas.axes1.legend()
@@ -2693,7 +2939,7 @@ class spectrumWindow(QtWidgets.QDialog,UiTrueWindow):
     def __init__(self):
         super(spectrumWindow,self).__init__()
         self.setupUi(self)
-        self.setWindowIcon(QtGui.QIcon('3x3 icon.png')) 
+        self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
         self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
         
         #selection push buttons
@@ -2714,7 +2960,7 @@ class bootstrapWindow(QtWidgets.QDialog,UiBootWindow):
     def __init__(self):
         super(bootstrapWindow,self).__init__()
         self.setupUi(self)
-        self.setWindowIcon(QtGui.QIcon('3x3 icon.png'))
+        self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
         self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
         
         #calculate values for both labels and RRCBB setup
@@ -2730,7 +2976,16 @@ class bootstrapWindow(QtWidgets.QDialog,UiBootWindow):
         self.paramNumber.setText(str(int(round(self.numpar))))
         self.sampleNumber.setText(str(int(round(self.numsmp)))) #for now this is fixed, customize in the future
         self.lengthNumber.setText(str(int(round(self.optlen))))
-        self.blockNumber.setText(str(int(round(self.numblk))))
+        if self.blockOverride:
+            self.lengthNumber.setText(str(int(round(self.optlen)))+'*') #inform the user about this forced block length
+            self.lengthNumber.setToolTip('Optimal length makes too few blocks for generating 1000 unique samples, forcing block length to 5')
+            self.blockNumber.setText(str(int(round(self.numblk)))+'*')
+            self.blockNumber.setToolTip('Optimal length makes too few blocks for generating 1000 unique samples, forcing block length to 5')
+        else:
+            self.lengthNumber.setText(str(int(round(self.optlen))))
+            self.lengthNumber.setToolTip('') #undo tool tip if no longer needed
+            self.blockNumber.setText(str(int(round(self.numblk))))
+            self.blockNumber.setToolTip('')
         self.bootRan=False
         
         #push buttons
@@ -2761,6 +3016,9 @@ class bootstrapWindow(QtWidgets.QDialog,UiBootWindow):
                 #if not an integer, floor it to get a block length that will create 5 blocks
                 est_optlen=int(np.floor(new_ratio)) 
             est_numblk=5 #in the future I can let the user decide numbers (above minimum for # of unique samps)
+            self.blockOverride=True
+        else:
+            self.blockOverride=False
             
         return est_optlen,est_numblk
     
@@ -2798,9 +3056,10 @@ class bootstrapWindow(QtWidgets.QDialog,UiBootWindow):
         return y_boot_err
     
     def plotBoot(self):
-        fig,ax=plt.subplots(1,2)
-        fig.text(0.5,0.01,'Wavelength ($\AA$)',ha='center',fontsize=18)
-        plt.suptitle(GUI.plotStarname+' RRCBB Samples',fontsize=24)
+        fig,ax=plt.subplots(1,2,figsize=(16,9),layout='tight')
+        fig.canvas.manager.set_window_title(GUI.plotStarname+'_'+GUI.lineLabel+'_Bootstrap')
+        fig.supxlabel('Wavelength ($\AA$)',fontsize=18)
+        plt.suptitle(GUI.plotStarname+' RRCBB Samples: '+GUI.lineLabel,fontsize=24)
         plt.sca(ax[0])
         if GUI.whichFit==1:
             plt.plot(GUI.waveCOS[GUI.allLinemasks[GUI.fitIndex]],GUI.fluxCOS[GUI.allLinemasks[GUI.fitIndex]],label='COS Data',linewidth=2,color='C0')
@@ -2811,7 +3070,7 @@ class bootstrapWindow(QtWidgets.QDialog,UiBootWindow):
         plt.plot(GUI.waveCOS[GUI.allLinemasks[GUI.fitIndex]]+GUI.allFitshifts[GUI.fitIndex],self.all_fit[0]*GUI.allFitscales[GUI.fitIndex],linewidth=0.025,color='k',label='RRCBB Samples')
         for n in range(1,len(self.all_fit)):
             plt.plot(GUI.waveCOS[GUI.allLinemasks[GUI.fitIndex]]+GUI.allFitshifts[GUI.fitIndex],self.all_fit[n]*GUI.allFitscales[GUI.fitIndex],linewidth=0.025,color='k')
-        plt.ylabel('Flux ($erg$ $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)',fontsize=18)
+        plt.ylabel('Flux Density ($erg$ $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)',fontsize=18)
         OoM=ax[0].yaxis.get_offset_text()
         OoM.set_size(18)
         plt.tick_params(labelsize=18)
@@ -2833,11 +3092,12 @@ class bootstrapWindow(QtWidgets.QDialog,UiBootWindow):
         leg2=plt.legend(fontsize=15,loc=1)
         leg2.get_lines()[1].set_linewidth(2) #change the linewidth or the RRCBB sample in the legend so it isnt nearly invisible
         plt.xticks(rotation=30)
-        plt.show()
+        plt.draw()
         
-        fig,ax=plt.subplots(1,2)
-        fig.text(0.5,0.01,'Wavelength ($\AA$)',ha='center',fontsize=18)
-        plt.suptitle(GUI.plotStarname+' Observed and Stellar Profiles',fontsize=24)
+        fig,ax=plt.subplots(1,2,figsize=(16,9),layout='tight')
+        fig.canvas.manager.set_window_title(GUI.plotStarname+'_'+GUI.lineLabel+'_Compare')
+        fig.supxlabel('Wavelength ($\AA$)',fontsize=18)
+        plt.suptitle(GUI.plotStarname+' Observed and Stellar Profiles: '+GUI.lineLabel,fontsize=24)
         plt.sca(ax[0])
         if GUI.whichFit==1:
             plt.plot(GUI.waveCOS[GUI.allLinemasks[GUI.fitIndex]],GUI.fluxCOS[GUI.allLinemasks[GUI.fitIndex]],label='COS Data',linewidth=2,color='C0')
@@ -2849,7 +3109,7 @@ class bootstrapWindow(QtWidgets.QDialog,UiBootWindow):
         if not isinstance(self.mdler,bool):
             plt.fill_between(GUI.waveCOS[GUI.allLinemasks[GUI.fitIndex]]+GUI.allFitshifts[GUI.fitIndex],(GUI.bestFit+GUI.intBesterr[0])*GUI.allFitscales[GUI.fitIndex],(GUI.bestFit-GUI.intBesterr[1])*GUI.allFitscales[GUI.fitIndex],color='C1',alpha=0.45,label='LMFIT Error')
         plt.fill_between(GUI.waveCOS[GUI.allLinemasks[GUI.fitIndex]]+GUI.allFitshifts[GUI.fitIndex],(GUI.bestFit+self.intBesberr[0])*GUI.allFitscales[GUI.fitIndex],(GUI.bestFit-self.intBesberr[1])*GUI.allFitscales[GUI.fitIndex],alpha=0.25,color='C2',label='RRCBB Error')
-        plt.ylabel('Flux ($erg$ $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)',fontsize=18)
+        plt.ylabel('Flux Density ($erg$ $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)',fontsize=18)
         OoM=ax[0].yaxis.get_offset_text()
         OoM.set_size(18)
         plt.legend(fontsize=15)
@@ -2867,7 +3127,7 @@ class bootstrapWindow(QtWidgets.QDialog,UiBootWindow):
         plt.legend(fontsize=15)
         plt.tick_params(labelsize=18)
         plt.xticks(rotation=30)
-        plt.show()
+        plt.draw()
         
     def paramPercentile(self,pval,upper=84.135,lower=15.865):
         param_lists=[[] for _ in range(len(pval[0]))] #gather all of the sample params into a single list, for all params
