@@ -1,14 +1,33 @@
 # subtractAirglow
 Subtract H I Lyman-alpha and O I airglow emission from HST-COS G130M spectra and reconstruct the underlying stellar H I and O I emission. This module was developed and optimized for main sequence F, G, K, and M dwarf stars, however the airglow subtraction feature can be used for other targers observed with COS G130M.
 
+### Compatibility
+- Anaconda 23.3.1 and above
+- Python 3.10.9 and above
+- Windows 10, 11
+- Mac OS Monterey (Intel/M1 Chips)
+- Linux (recent relases of Debian, Red Hat, and SUSE distribution families)
+
+#### For Macs with M2 chips, a future update will introduce compatibility
+
 ## Installation
-**It is recommended to install this module in a virtual environment.** The `subtractAirglow` module can be installed by using `pip`:
+**It is recommended to install this module in a virtual environment.** This can be done, for example, by running the following in the terminal:
+
+```
+conda create -n subAG python=3.10
+```
+
+Substituting `python=3.10` with `python=3.11` will also work. Activate the virtual environment with: 
+
+```
+conda activate subAG
+```
+
+The `subtractAirglow` module can then be installed in the virtual environment by using `pip`:
 
 ```
 pip install git+https://github.com/AstroAguirre/subtractAirglow.git
 ```
-
-**Note:** If you are having trouble installing or running the module, please see the Releases section and try pre-release v0.0.2 instead (full release expected by July 2023) 
 
 ## Import the GUI
 Once installed, the GUI can be accessed by importing the module:
