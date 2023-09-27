@@ -5,41 +5,33 @@ Created on Thu Sep 23 17:06:14 2021
 @author: edcr4756
 """
 
+#get path to files
+import os
+import subtractAirglow
+path=os.path.dirname(subtractAirglow.__file__) #find path to package
+
 import csv
 import sys
 import time
 from subtractAirglow import voigt #import from the subtractAirglow package
 import numpy as np
 import pandas as pd
+#import qdarktheme #https://pypi.org/project/pyqtdarktheme/
 import matplotlib.pyplot as plt
 from lmfit import Model
 from scipy import integrate
 from astropy.io import fits
-from PyQt5.uic import loadUiType
-from PyQt5 import QtWidgets, QtGui, QtCore
+from PyQt6 import QtWidgets, QtGui, QtCore
 from astropy.modeling.models import Voigt1D, Gaussian1D
 from recombinator.optimal_block_length import optimal_block_length
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavToolbar #used to generate the matplotlib toolbar
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar #used to generate the matplotlib toolbar
 
-#get path to files
-import os
-import subtractAirglow
-path=os.path.dirname(subtractAirglow.__file__) #find path to package
-
-#import the .ui files, which contain the layouts of the GUI windows
-UiMainWindow,QtWidgets.QMainWindow=loadUiType(path+'//AirglowRemoval_v0_0_2.ui')
-UiStisWindow,QtWidgets.QMainWindow=loadUiType(path+'//AirglowRemoval_STIS_v0_0_2.ui')
-UiResidWindow,QtWidgets.QMainWindow=loadUiType(path+'//AirglowRemoval_Residuals_v0_0_2.ui')
-UiRangeWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Range_v0_0_2.ui')
-UiFillWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Missing_v0_0_2.ui')
-UiFillWindow2,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Missing2_v0_0_2.ui')
-UiTrueWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Recovered_v0_0_2.ui')
-UiValsWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Results_v0_0_2.ui')
-UiBootWindow,QtWidgets.QDialog=loadUiType(path+'//AirglowRemoval_Bootstrap_v0_0_2.ui')
+#import ui layouts
+from subtractAirglow.AirglowRemovalUi import mainUi,bootstrapUi,missingUi,rangeUi,recoveredUi,residualsUi,resultsUi,stisUi
 
 plt.ion() #make plt.draw() work in terminal/as package
 
-class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
+class mainWindow(QtWidgets.QMainWindow,mainUi):
     def __init__(self):
         super(mainWindow,self).__init__()
         self.setupUi(self)
@@ -51,6 +43,9 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         #File open push buttons
         self.openCOS.clicked.connect(self.fileCOS) #open COS x1d.fits or sav.txt file, G130M
         self.openSTIS.clicked.connect(self.fileSTIS) #open STIS x1d.fits file, E140M or G140M
+        #get default text color so that GUI recoloring works in both light/dark mode
+        textQColor=self.palette().text().color() #returns QColor with .red(),.green(),.blue() properties
+        self.textColor='color: rgb(%d,%d,%d)' %(textQColor.red(),textQColor.green(),textQColor.blue())
         
         #lineEdits activate when pressing enter (maybe add an apply button?)
         self.starInput.textChanged.connect(self.starApply)
@@ -153,7 +148,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.readySTIS=False #prevent anything involving STIS until file is loaded
         self.fitExists=False #prevent anthing involving changing the fit, i.e. sliders
         self.plotExists=False #prevents anything involving the plot before it exists
-        self.cutoffDone=[False,False,False,False] #enables saving of the data and residuals to reapply a cutoff
+        self.useCutoff=[False,False,False,False] #checks to see if a cutoff value is applied
         self.bootDone=[False,False,False,False] #prevents saving an otherwise empty set of CSVs
         
         #Placeholders to be filled as the user runs the GUI
@@ -188,13 +183,13 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.onlyA=False #whether COS data uses both sides of the detector or just side A (larger wavelengths)
         self.showComps=True #whether components are shown on the plot or not, defaulted to true
         self.fitOverride=False #when switching between lines, do not run a fit when changing slider values
+        self.fitSlider=False #when recalcuating residuals/RRCBB after changing fit sliders, recalculate fit to the original lineMask
         self.bootRunning=False #when the bootstrap runs in 2 part mode, do not vary airglow params
-        self.useCutoff=[False,False,False,False] #checks to see if a cutoff value should be applied
         self.airglowRemoved=[False,False,False,False] #changes to true if the line has airglow removed
         
         #Initialize default values for variables used by the fit
         self.lineCenters=[1215.67,1302.1685,1304.8576,1306.0286] #wavelength centers of the spectral lines
-        self.sfSTIS=1.0 #the STIS scale factor to scale it to recovered COS data, default is 1.0
+        self.sfSTIS=[1.0,1.0,1.0,1.0] #the STIS scale factors to scale it to recovered COS data, default is 1.0
         self.allLinemasks=[[],[],[],[]] #the masks applied to each of the four lines
         self.allWaveinfs=[[],[],[],[]] #the "infinite resolution" wavegrids for each line
         self.allShifts=[0.0,0.0,0.0,0.0] #airglow shifts default to 0.0
@@ -203,6 +198,9 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.allFitscales=[1.0,1.0,1.0,1.0] #fit scales default to 1.0
         self.allCutoffs=[np.inf,np.inf,np.inf,np.inf] #normalized residuals shouldn't be cut off at the start
         self.allCutmasks=[[],[],[],[]] #the masks produced from the normalized residuals, once created
+        self.origMasks=[[],[],[],[]] #the original line masks before a cutoff is applied
+        self.origBests=[[],[],[],[]] #the original best fit before a cutoff is applied
+        self.origBerrs=[[],[],[],[]] #the original best fit error before a cutoff is applied
         
         #list of bools that will hold data going into the main CSV savefile
         self.finalLinemasks=[False,False,False,False] #line masks used (line + cutoff masks)
@@ -217,8 +215,12 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.finalBest=[False,False,False,False] #best fit profile
         self.finalBesterr=[False,False,False,False] #the errors of the best fit profile
         self.finalIfluxrecv=[False,False,False,False] #the integrated fluxes of the recovered profiles
+        self.finalIfluxrerr=[False,False,False,False] #the errors of the recovered profile flux
         self.finalIfluxstel=[False,False,False,False] #the integrated fluxes of the best fit stellar+SR profiles
         self.finalIfluxserr=[False,False,False,False] #the errors of the stellar+SR integrated fluxes
+        self.finalIfluxstis=[False,False,False,False] #the integrated fluxes of the integrated STIS data
+        self.finalIfluxster=[False,False,False,False] #the errors of the integrated STIS flux
+        self.finalSTISscale=[False,False,False,False] #the STIS scale factors used when plotting
         self.finalFitmode=[False,False,False,False] #keep track of which fit mode was used to get the parameters
         self.finalAirmode=[False,False,False,False] #keep track of which airglow mode was used to get the parameters
         self.finalEmethod=[False,False,False,False] #keep track of whether errors are LMFIT or RRCBB
@@ -254,11 +256,11 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.show() #open the GUI window
         
     def cosReset(self):
-        #reset all COS related controll booleans
+        #reset all COS related control booleans
         self.readyCOS=False
         self.fitExists=False
         self.plotExists=False
-        self.cutoffDone=[False,False,False,False]
+        self.useCutoff=[False,False,False,False]
         self.bootDone=[False,False,False,False]
         
         #reset all COS related placeholders
@@ -289,6 +291,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.onlyA=False
         self.showComps=True
         self.fitOverride=False
+        self.fitSlider=False
         self.bootRunning=False
         self.airglowRemoved=[False,False,False,False]
         
@@ -305,6 +308,9 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.allFitscales=[1.0,1.0,1.0,1.0]
         self.allCutoffs=[np.inf,np.inf,np.inf,np.inf]
         self.allCutmasks=[[],[],[],[]]
+        self.origMasks=[[],[],[],[]]
+        self.origBests=[[],[],[],[]]
+        self.origBerrs=[[],[],[],[]]
         
         #reset the sliders and related values
         self.shiftInput.setText('0.0') #reset slider text box values
@@ -328,9 +334,9 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.fitScale.setValue(int(round(1.0*(1000.0/10.0))))
         self.fitScale.valueChanged.connect(self.scaleFit)
         self.scaled_valH=0.0 #reset the internal values
-        self.scaled_valV=0.0
+        self.scaled_valV=1.0
         self.scaled_valFH=0.0
-        self.scaled_valFV=0.0
+        self.scaled_valFV=1.0
         
         #reset all final arrays for CSV saving
         self.finalLinemasks=[False,False,False,False]
@@ -345,8 +351,12 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.finalBest=[False,False,False,False]
         self.finalBesterr=[False,False,False,False]
         self.finalIfluxrecv=[False,False,False,False]
+        self.finalIfluxrerr=[False,False,False,False]
         self.finalIfluxstel=[False,False,False,False]
         self.finalIfluxserr=[False,False,False,False]
+        self.finalIfluxstis=[False,False,False,False] 
+        self.finalIfluxster=[False,False,False,False]
+        self.finalSTISscale=[False,False,False,False]
         self.finalFitmode=[False,False,False,False]
         self.finalAirmode=[False,False,False,False]
         self.finalEmethod=[False,False,False,False]
@@ -459,7 +469,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.errrSTIS=None
         
         #reset STIS related default values
-        self.sfSTIS=1.0
+        self.sfSTIS=[1.0,1.0,1.0,1.0]
         
         #reset all edited labels
         self.labelSTIS.setText('STIS E140M/G140M File:')
@@ -573,8 +583,8 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 cos_grat=hdr['OPT_ELEM']
             except:
                 cos_grat=False
-                gratChoice=QtWidgets.QMessageBox.question(self,'Grating Not Found','The grating could not be found.\nContinue under the assumption that this is G130M data?',QtWidgets.QMessageBox.Yes|QtWidgets.QMessageBox.No)
-                if gratChoice==QtWidgets.QMessageBox.Yes:
+                gratChoice=QtWidgets.QMessageBox.question(self,'Grating Not Found','The grating could not be found.\nContinue under the assumption that this is G130M data?',QtWidgets.QMessageBox.StandardButton.Yes|QtWidgets.QMessageBox.StandardButton.No)
+                if gratChoice==QtWidgets.QMessageBox.StandardButton.Yes:
                     cos_grat='G130M'
                 else:
                     pass
@@ -589,17 +599,33 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 sideA=dat[0]
                 if len(dat)==2: #assumes both sides    
                     sideB=dat[1]
+                    self.sideLabel.setText('Side A Only: False')
                     #wavelength order is side B, side A
                     self.waveCOS=np.concatenate((sideB[3],sideA[3]),axis=0) 
                     self.fluxCOS=np.concatenate((sideB[4],sideA[4]),axis=0)
                     self.errrCOS=np.concatenate((sideB[5],sideA[5]),axis=0)
                     self.fileLP=hdu[0].header['LIFE_ADJ'] #integer
+                    self.lifeLabel.setText('Lifetime Position: '+str(self.fileLP))
+                    cenwave=hdu[0].header['CENWAVE']
+                    if self.fileLP==3 and cenwave==1327:
+                        self.specialLyA=True
+                        self.cen1327Label.setText('LP3 1327: True')
+                    else:
+                        self.cen1327Label.setText('LP3 1327: False')
                 elif len(dat)==1: #assumed side A only
                     self.onlyA=True
+                    self.sideLabel.setText('Side A Only: True')
                     self.waveCOS=sideA[3]
                     self.fluxCOS=sideA[4]
                     self.errrCOS=sideA[5]
                     self.fileLP=hdu[0].header['LIFE_ADJ'] #integer
+                    self.lifeLabel.setText('Lifetime Position: '+str(self.fileLP))
+                    cenwave=hdu[0].header['CENWAVE']
+                    if self.fileLP==3 and cenwave==1327:
+                        self.specialLyA=True
+                        self.cen1327Label.setText('LP3 1327: True')
+                    else:
+                        self.cen1327Label.setText('LP3 1327: False')
                 else: #this case is for muscles data, for now
                     self.waveCOS=dat['WAVELENGTH']
                     self.fluxCOS=dat['FLUX']
@@ -609,7 +635,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 filename=nameCOS[0].split('/')[-1] #get name of file within folder
                 self.filenameCOS=str(filename)
                 self.labelCOS.setText('COS G130M File: '+self.filenameCOS)
-                self.labelCOS.setStyleSheet('color: black')
+                self.labelCOS.setStyleSheet(self.textColor)
                 
                 #if the target name can be grabbed from the file, put it on the lineEdit and apply
                 if not isinstance(cos_name,bool):
@@ -622,14 +648,18 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                     dialogFill=missingWindow()
                     dialogFill.exec()
                 else:
-                    #Only checks for the special conditions
-                    dialogFill2=missingWindow2()
-                    dialogFill2.exec()
-                    self.lifeLabel.setText('Lifetime Position: '+str(self.fileLP))
+                    #Only ask for M type, everything else is already determined
+                    redDwarf=QtWidgets.QMessageBox.question(self,'Missing Information','Is this an M type star?',QtWidgets.QMessageBox.StandardButton.Yes|QtWidgets.QMessageBox.StandardButton.No)
+                    if redDwarf==QtWidgets.QMessageBox.StandardButton.Yes:
+                        self.isM=True
+                        self.spectypeLabel.setText('M Type: True')
+                    else:
+                        self.spectypeLabel.setText('M Type: False')
                
                 #enable the spectral line radio buttons
                 if not self.onlyA:
                     self.radioLyA.setDisabled(False)
+                    self.vismInput.setDisabled(True)
                 else:
                     self.radioLyA.setToolTip('Side A does not contain Lyα')
                 self.radioOI2.setDisabled(False)
@@ -643,6 +673,8 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 self.labelOI5.setText('OI 1305 Range: '+str(self.rangeOI5[0])+' - '+str(self.rangeOI5[1])+' Å')
                 self.labelOI6.setText('OI 1306 Range: '+str(self.rangeOI6[0])+' - '+str(self.rangeOI6[1])+' Å')
                 
+            
+                #set internal GUI values    
                 self.currenetRange=[min(self.waveCOS),max(self.waveCOS)]
                 self.whichLP=self.fileLP
                 self.readyCOS=True
@@ -700,7 +732,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 filename=nameCOS[0].split('/')[-1]
                 self.filenameCOS=str(filename)
                 self.labelCOS.setText('COS G130M File: '+self.filenameCOS)
-                self.labelCOS.setStyleSheet('color: black')
+                self.labelCOS.setStyleSheet(self.textColor)
                 self.whichLP=self.fileLP
                 self.readyCOS=True
                 self.plotExists=True
@@ -746,7 +778,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 filename=nameCOS[0].split('/')[-1]
                 self.filenameCOS=str(filename)
                 self.labelCOS.setText('COS G130M File: '+self.filenameCOS)
-                self.labelCOS.setStyleSheet('color: black')
+                self.labelCOS.setStyleSheet(self.textColor)
                 self.whichLP=self.fileLP
                 self.readyCOS=True
                 self.plotExists=True
@@ -777,7 +809,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 self.radioOI6.setToolTip('The current wavelength range for this line contains flux error values that are zero, try editing the line range')
         
     def fileSTIS(self):
-        nameSTIS=QtWidgets.QFileDialog.getOpenFileName(self,'Open STIS E140M/G140M File','','X1D(*_x1d.fits);;Fits(*fits);;All(*)')
+        nameSTIS=QtWidgets.QFileDialog.getOpenFileName(self,'Open STIS E140M/G140M File','','X1D(*_x1d.fits);;Fits(*fits);;Dat(*dat);;All(*)')
         if nameSTIS[0][-9:]=='_x1d.fits' or nameSTIS[0][-5:]=='.fits': #open x1d file, supports renaming these files
             
             self.stisReset()
@@ -801,17 +833,26 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                     stis_grt=hdr['GRATING'] #muscles format
                     stis_muscles=True #used if this is muscles data
                 except:
-                    stis_grt=False #have a dialog box popup to ask what grating is being used.
+                    whichGrat=QtWidgets.QMessageBox()
+                    whichGrat.setIcon(QtWidgets.QMessageBox.Icon.Question)
+                    whichGrat.setWindowTitle('Which STIS Grating was Used?')
+                    whichGrat.setText('Unable to determine which STIS grating\nwas used, select a grating below.')
+                    whichGrat.addButton('G140M',QtWidgets.QMessageBox.ButtonRole.AcceptRole) #give G140M accept
+                    whichGrat.addButton('E140M',QtWidgets.QMessageBox.ButtonRole.RejectRole) #give E140M reject
+                    stisGrat=whichGrat.exec()
+                    if stisGrat==0: #returned value for accept
+                        stis_grt='G140M'
+                    elif stisGrat==1: #returned value for reject
+                        stis_grt='E140M'
                     stis_muscles=False
 
             if stis_grt=='G140M' and not stis_muscles:
                 filename2=nameSTIS[0].split('/')[-1]
                 self.filenameSTIS=str(filename2)
                 self.labelSTIS.setText('STIS E140M/G140M File: '+self.filenameSTIS)
-                self.labelSTIS.setStyleSheet('color: black')
                 self.whichSTIS='G'
                 self.modeSTIS.setText('STIS Mode: G140M')
-                self.sfSTIS=1.0
+                self.sfSTIS=[1.0,1.0,1.0,1.0]
                 self.readySTIS=True
                 if self.currentLine!=None: #only disable if COS data is loaded and a line has been selected
                     if self.whichSTIS=='G' and self.currentLine>=2: #for G140M data, do not enable if OI lines are selected
@@ -825,20 +866,18 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 self.filenameSTIS=str(filename2)
                 if stis_grt=='G140M':
                     self.labelSTIS.setText('STIS E140M/G140M File: '+self.filenameSTIS)
-                    self.labelSTIS.setStyleSheet('color: black')
                     self.whichSTIS='G'
                     self.modeSTIS.setText('STIS Mode: G140M')
-                    self.sfSTIS=1.0
+                    self.sfSTIS=[1.0,1.0,1.0,1.0]
                     self.readySTIS=True
                     if self.readyCOS:
                         self.checkSTIS.setDisabled(False)
                     self.clearSTIS.setDisabled(False)
                 elif stis_grt=='E140M':
                     self.labelSTIS.setText('STIS E140M/G140M File: '+self.filenameSTIS)
-                    self.labelSTIS.setStyleSheet('color: black')
                     self.whichSTIS='E'
                     self.modeSTIS.setText('STIS Mode: E140M')
-                    self.sfSTIS=1.0
+                    self.sfSTIS=[1.0,1.0,1.0,1.0]
                     self.readySTIS=True
                     if self.readyCOS:
                         self.checkSTIS.setDisabled(False)
@@ -849,7 +888,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                     self.modeSTIS.setText('STIS Mode:')
                     self.checkSTIS.setDisabled(True)
                     self.whichSTIS=None
-                    self.sfSTIS=None
+                    self.sfSTIS=[1.0,1.0,1.0,1.0]
                     self.readySTIS=False
                 
                 
@@ -857,10 +896,9 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 filename2=nameSTIS[0].split('/')[-1]
                 self.filenameSTIS=str(filename2)
                 self.labelSTIS.setText('STIS E140M/G140M File: '+self.filenameSTIS)
-                self.labelSTIS.setStyleSheet('color: black')
                 self.whichSTIS='E'
                 self.modeSTIS.setText('STIS Mode: E140M')
-                self.sfSTIS=1.0
+                self.sfSTIS=[1.0,1.0,1.0,1.0]
                 self.readySTIS=True
                 if self.readyCOS:
                     self.checkSTIS.setDisabled(False)
@@ -872,25 +910,75 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 self.modeSTIS.setText('STIS Mode:')
                 self.checkSTIS.setDisabled(True)
                 self.whichSTIS=None
-                self.sfSTIS=None
+                self.sfSTIS=[1.0,1.0,1.0,1.0]
                 self.readySTIS=False
+        
+        elif nameSTIS[0][-4:]=='.dat': #opens .dat files with wavelength, flux, and error arrays
+        
+            self.stisReset()
+            
+            STISdata=pd.read_csv(nameSTIS[0],names=['WAV','FLX','ERR'],sep='\s+')
+            self.waveSTIS=np.array(STISdata['WAV'])
+            self.fluxSTIS=np.array(STISdata['FLX'])
+            self.errrSTIS=np.array(STISdata['ERR'])
+            
+            #data files will not contain additional info by design, need to ask which grating was used
+            whichGrat=QtWidgets.QMessageBox()
+            whichGrat.setIcon(QtWidgets.QMessageBox.Icon.Question)
+            whichGrat.setWindowTitle('Which STIS Grating was Used?')
+            whichGrat.setText('Unable to determine which STIS grating\nwas used, select a grating below.')
+            whichGrat.addButton('G140M',QtWidgets.QMessageBox.ButtonRole.AcceptRole) #give G140M accept
+            whichGrat.addButton('E140M',QtWidgets.QMessageBox.ButtonRole.RejectRole) #give E140M reject
+            stisGrat=whichGrat.exec()
+            if stisGrat==0: #returned value for accept
+                stis_grt='G140M'
+            elif stisGrat==1: #returned value for reject
+                stis_grt='E140M'
+            
+            if stis_grt=='G140M':
+                filename2=nameSTIS[0].split('/')[-1]
+                self.filenameSTIS=str(filename2)
+                self.labelSTIS.setText('STIS E140M/G140M File: '+self.filenameSTIS)
+                self.whichSTIS='G'
+                self.modeSTIS.setText('STIS Mode: G140M')
+                self.sfSTIS=[1.0,1.0,1.0,1.0]
+                self.readySTIS=True
+                if self.currentLine!=None: #only disable if COS data is loaded and a line has been selected
+                    if self.whichSTIS=='G' and self.currentLine>=2: #for G140M data, do not enable if OI lines are selected
+                        self.checkSTIS.setToolTip('G140M data does not contain OI emission lines')
+                    else: #otherwise, enable the button
+                        self.checkSTIS.setDisabled(False)
+                self.clearSTIS.setDisabled(False)
+                
+            elif stis_grt=='E140M':
+                filename2=nameSTIS[0].split('/')[-1]
+                self.filenameSTIS=str(filename2)
+                self.labelSTIS.setText('STIS E140M/G140M File: '+self.filenameSTIS)
+                self.whichSTIS='E'
+                self.modeSTIS.setText('STIS Mode: E140M')
+                self.sfSTIS=[1.0,1.0,1.0,1.0]
+                self.readySTIS=True
+                if self.readyCOS:
+                    self.checkSTIS.setDisabled(False)
+                self.clearSTIS.setDisabled(False)
+        
         else:
             self.labelSTIS.setText('STIS E140M/G140M File: Incorrect File Format')
             self.labelSTIS.setStyleSheet('color: red')
             self.modeSTIS.setText('STIS Mode:')
             self.checkSTIS.setDisabled(True)
             self.whichSTIS=None
-            self.sfSTIS=None
+            self.sfSTIS=[1.0,1.0,1.0,1.0]
             self.readySTIS=False
             
         if self.fitExists and self.readySTIS: #if fit was done, then user uploads STIS, iFlux won't be calculated
             maskSTIS=((self.currentRange[0]<=self.waveSTIS)&(self.waveSTIS<=self.currentRange[1]))
             try: #if no STIS data is present within the current range, cannot integrate
-                self.intSTISdat=self.integrateFlux(self.waveSTIS[maskSTIS],self.fluxSTIS[maskSTIS]*self.sfSTIS)
-                self.intSTISerr=False 
+                self.intSTISdat=self.integrateFlux(self.waveSTIS[maskSTIS],self.fluxSTIS[maskSTIS]) #sfSTIS will be set to 1.0 when successfully reading in data, do not need to scale here
+                self.intSTISerr=self.coreEnforcer(self.waveSTIS[maskSTIS],self.fluxSTIS[maskSTIS],self.errrSTIS[maskSTIS])
             except:
                 self.intSTISdat=0.0
-                self.intSTISerr=False
+                self.intSTISerr=[False,False]
     
     def starApply(self):
         self.plotStarname=self.starInput.text()
@@ -899,11 +987,14 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 
     def selectLSF(self,whichOut=0):
         if self.specialLyA and self.fitIndex==0:
-            lsf_fname=path+'//aa_LSFTable_G130M_1327_LP3_cn.dat'
-            lsf_waves=['1217','1302','1307'] #only for LP3 1327 specifically for LyA
+            lsf_fname=path+'//aa_LSFTable_G130M_1327_LP3_cn.dat' #only for LP3 1327 specifically for LyA
+            lsf_waves=['1217','1302','1307'] 
         else:
-            lsf_fname=path+'//aa_LSFTable_G130M_1291_LP'+str(self.whichLP)+'_cn.dat'
-            lsf_waves=['1214','1300','1305'] #otherwise, always use the LPx 1291 LSF for LyA and OI
+            lsf_fname=path+'//aa_LSFTable_G130M_1291_LP'+str(self.whichLP)+'_cn.dat' #otherwise, always use the LPx 1291 LSF for LyA and OI
+            if self.whichLP==5:
+                lsf_waves=['1215','1300','1305'] 
+            else:
+                lsf_waves=['1214','1300','1305'] 
             
         lsfOpen=pd.read_csv(lsf_fname,sep=' ')
         if self.fitIndex==0:        
@@ -957,33 +1048,105 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.allWaveinfs[self.fitIndex]=self.waveInf
         
     def fillFalse(self,arr,fill):
+        #make the smaller fill array be the size of the arr array by filling the sides with enough falses
         leftlen=0
         ritelen=0
         swapside=False
         for i in arr:
             if not i and not swapside:
-                leftlen+=1
+                leftlen+=1 #count the number of falses to the left
             elif i and not swapside:
-                swapside=True
+                swapside=True #switch to the right
             elif not i and swapside:
-                ritelen+=1
+                ritelen+=1 #count number of falses to the right
             else:
                 pass
         
         leftarr=[False]*leftlen
         ritearr=[False]*ritelen
-        filled=np.concatenate((leftarr,fill,ritearr))
+        filled=np.concatenate((leftarr,fill,ritearr)) #combine together to make fill the size of arr
         return filled
                 
-    def lineActions(self,lineRange,lineIndex):
-        if self.useCutoff[lineIndex]:
-            self.lineComp=((lineRange[0]<=self.waveCOS)&(self.waveCOS<=lineRange[1]))
-            self.normComp=self.fillFalse(self.lineComp,self.allCutmasks[lineIndex])
-            self.lineMask=(self.lineComp&self.normComp)
+    def fitChanges(self):
+        #if one of the 9 user input values changes, normalized residuals and RRCBB become invalud if already applied/ran
+        #these 9 values are the airglow shift/scale, the fit shift/scale, the two RVs, the two fit modes, and the line range
+        if self.useCutoff[self.fitIndex]==True and self.bootDone[self.fitIndex]==True:
+            fitChange=QtWidgets.QMessageBox.question(self,'Change fit value?','Changing this value will reset the normalized residuals\nand will require a new RRCBB run.\nAre you sure you want to change this?',QtWidgets.QMessageBox.StandardButton.Yes|QtWidgets.QMessageBox.StandardButton.No)
+            if fitChange==QtWidgets.QMessageBox.StandardButton.Yes:
+                self.resetResid(self.fitIndex)
+                self.resetRRCBB(self.fitIndex)
+                return True
+            else:
+                return False
+        
+        elif self.useCutoff[self.fitIndex]==True:
+            fitChange=QtWidgets.QMessageBox.question(self,'Change fit value?','Changing this value will reset the normalized residuals.\nAre you sure you want to change this?',QtWidgets.QMessageBox.StandardButton.Yes|QtWidgets.QMessageBox.StandardButton.No)
+            if fitChange==QtWidgets.QMessageBox.StandardButton.Yes:
+                self.resetResid(self.fitIndex)
+                return True
+            else:
+                return False
+            
+        elif self.bootDone[self.fitIndex]==True:
+            fitChange=QtWidgets.QMessageBox.question(self,'Change fit value?','Changing this value will require a new RRCBB run.\nAre you sure you want to change this?',QtWidgets.QMessageBox.StandardButton.Yes|QtWidgets.QMessageBox.StandardButton.No)
+            if fitChange==QtWidgets.QMessageBox.StandardButton.Yes:
+                self.resetRRCBB(self.fitIndex)
+                return True
+            else:
+                return False
+            
         else:
-            self.lineComp=((lineRange[0]<=self.waveCOS)&(self.waveCOS<=lineRange[1]))
+            return True #if NRC/RRCBB haven't happened, proceed as normal
+
+    def resetResid(self,lineInd):
+        #reset relevant parameters
+        self.useCutoff[lineInd]=False
+        self.allCutoffs[lineInd]=np.inf
+        self.allCutmasks[lineInd]=[]
+        self.finalCutoffs[lineInd]=False
+        self.origMasks[lineInd]=[]
+        self.origBests[lineInd]=[]
+        self.origBerrs[lineInd]=[]
+        #reset line masks and LSF (can't call lineActions or else airglow sliders get a double disconnect, breaking the GUI)
+        self.normComp=[True]*len(GUI.waveCOS)
+        self.lineMask=(self.lineComp&self.normComp)
+        self.allLinemasks[self.fitIndex]=self.lineMask
+        self.prepareLSF()
+        if self.fitSlider==True:
+            #model needs to rerun after changing fit sliders
+            #only needed for these sliders since everything else already reruns the model by design
+            if self.whichFit==1:
+                self.runModel()
+            else:
+                self.runModel2()
+            self.displayPlot()
+        
+        
+    def resetRRCBB(self,lineInd):
+        #reset relevant parameters
+        self.bootDone[lineInd]=False
+        self.finalEmethod[lineInd]=False
+        self.finalOptlen[lineInd]=False
+        self.finalNumblk[lineInd]=False
+        self.finalNumpar[lineInd]=False
+        self.finalNumsmp[lineInd]=False
+        self.finalDeltaT[lineInd]=False
+        self.finalRCBfit[lineInd]=False
+        self.finalRCBste[lineInd]=False
+        self.finalRCBpav[lineInd]=False
+        self.finalRCBpae[lineInd]=False
+        self.finalRCBbfe[lineInd]=False
+        self.finalRCBsce[lineInd]=False
+        self.finalRCBsie[lineInd]=False
+        
+    
+    def lineActions(self,lineRange,lineIndex):
+        self.lineComp=((lineRange[0]<=self.waveCOS)&(self.waveCOS<=lineRange[1]))
+        if self.useCutoff[lineIndex]:
+            self.normComp=self.fillFalse(self.lineComp,self.allCutmasks[lineIndex])
+        else:
             self.normComp=[True]*len(GUI.waveCOS) #does nothing
-            self.lineMask=(self.lineComp&self.normComp)
+        self.lineMask=(self.lineComp&self.normComp)
         ytop=1.1*np.max(self.fluxCOS[self.lineMask])
         ybot=-2e-16
         self.currentRange=lineRange
@@ -1026,7 +1189,10 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             
             if self.currentLine==None:
                 self.vradInput.setDisabled(False)
-                self.vismInput.setDisabled(False)
+            else:
+                self.vismInput.setText(str(self.radISMVelocity)) #if OI is selected and then LyA selected, need to show the default value in the box
+            self.vismInput.setDisabled(False) #reenable RV ISM when switching to LyA for first time or when copming from OI line
+            self.vismInput.setToolTip('')
             if self.readySTIS:
                 self.checkSTIS.setDisabled(False)
                 self.checkSTIS.setToolTip('') #no tooltip needed here, overwrites an OI related tooltip
@@ -1045,7 +1211,12 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             self.fitIndex=1
             if self.currentLine==None:
                 self.vradInput.setDisabled(False)
-                self.vismInput.setDisabled(False)
+                self.radISMVelocity=0.0 #set a default value, for fit to not be upset
+            else:
+                self.vismInput.setDisabled(True) #if enabled by LyA, disable it for OI
+                if self.radISMVelocity==None:
+                    self.radISMVelocity=0.0 #If LyA is selected but value isn't inputted, input one so nothing breaks
+            self.vismInput.setToolTip('ISM Velocity is not required for OI emission lines')
             if self.readySTIS:
                 if self.whichSTIS=='E':
                     self.checkSTIS.setDisabled(False)
@@ -1062,7 +1233,10 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             self.fitIndex=2
             if self.currentLine==None:
                 self.vradInput.setDisabled(False)
-                self.vismInput.setDisabled(False)
+                self.radISMVelocity=0.0 #set a default value, for fit to not be upset
+            else:
+                self.vismInput.setDisabled(True) #if enabled by LyA, disable it for OI but keep LyA RV ISM value
+            self.vismInput.setToolTip('ISM Velocity is not required for OI emission lines')
             if self.readySTIS:
                 if self.whichSTIS=='E':
                     self.checkSTIS.setDisabled(False)
@@ -1078,7 +1252,10 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             self.fitIndex=3
             if self.currentLine==None:
                 self.vradInput.setDisabled(False)
-                self.vismInput.setDisabled(False)
+                self.radISMVelocity=0.0 #set a default value, for fit to not be upset
+            else:
+                self.vismInput.setDisabled(True) #if enabled by LyA, disable it for OI but keep LyA RV ISM value
+            self.vismInput.setToolTip('ISM Velocity is not required for OI emission lines')
             if self.readySTIS:
                 if self.whichSTIS=='E':
                     self.checkSTIS.setDisabled(False)
@@ -1098,19 +1275,19 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.dialogSTIS.show()
         
     def removeSTIS(self):
-        deleteSTIS=QtWidgets.QMessageBox.question(self,'Clear STIS Data?','Are you sure you want to clear the current STIS data?',QtWidgets.QMessageBox.Yes|QtWidgets.QMessageBox.No)
-        if deleteSTIS==QtWidgets.QMessageBox.Yes:
+        deleteSTIS=QtWidgets.QMessageBox.question(self,'Clear STIS Data?','Are you sure you want to clear the current STIS data?',QtWidgets.QMessageBox.StandardButton.Yes|QtWidgets.QMessageBox.StandardButton.No)
+        if deleteSTIS==QtWidgets.QMessageBox.StandardButton.Yes:
             self.stisReset()
         else:
             pass
         
     def setVrad(self):
         try:
-            self.radVelocity=float(self.vradInput.text())
+            radVel=float(self.vradInput.text())
             isFloat=True
         except:
-            notFloat=QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float!',QtWidgets.QMessageBox.Ok)
-            if notFloat==QtWidgets.QMessageBox.Ok:
+            notFloat=QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float!',QtWidgets.QMessageBox.StandardButton.Ok)
+            if notFloat==QtWidgets.QMessageBox.StandardButton.Ok:
                 isFloat=False
                 
         if isFloat:
@@ -1123,19 +1300,32 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             QtWidgets.QApplication.focusWidget().clearFocus()
     
             if self.fitExists:
-                if self.whichFit==1:
-                    self.runModel()
+                #user input, make sure change is okay
+                if radVel!=self.radVelocity:
+                    proceed=self.fitChanges()
                 else:
-                    self.runModel2()
-                self.displayPlot()
+                    proceed=False #if value is the same, then no need to recalculate the same fit
+                if proceed:
+                    self.radVelocity=float(self.vradInput.text())
+                    
+                    if self.whichFit==1:
+                        self.runModel()
+                    else:
+                        self.runModel2()
+                    self.displayPlot()
+                else:
+                    self.vradInput.setText(str(self.radVelocity)) #return original value back to the input box
+            else:
+                #before fit exists, this check doesn't matter, so this can be set without issue
+                self.radVelocity=float(self.vradInput.text())
                 
     def setVism(self):
         try:
-            self.radISMVelocity=float(self.vismInput.text())
+            radISM=float(self.vismInput.text())
             isFloat=True
         except:
-            notFloat=QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float!',QtWidgets.QMessageBox.Ok)
-            if notFloat==QtWidgets.QMessageBox.Ok:
+            notFloat=QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float!',QtWidgets.QMessageBox.StandardButton.Ok)
+            if notFloat==QtWidgets.QMessageBox.StandardButton.Ok:
                 isFloat=False
                 
         if isFloat:
@@ -1148,11 +1338,23 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             QtWidgets.QApplication.focusWidget().clearFocus()
     
             if self.fitExists:
-                if self.whichFit==1:
-                    self.runModel()
+                #user input, make sure change is okay
+                if radISM!=self.radISMVelocity:
+                    proceed=self.fitChanges()
                 else:
-                    self.runModel2()
-                self.displayPlot()
+                    proceed=False #if value is the same, then no need to recalculate the same fit
+                if proceed:
+                    self.radISMVelocity=float(self.vismInput.text())
+                    
+                    if self.whichFit==1:
+                        self.runModel()
+                    else:
+                        self.runModel2()
+                    self.displayPlot()
+                else:
+                    self.vismInput.setText(str(self.radISMVelocity)) #return original value back to the input box
+            else:
+                self.radISMVelocity=float(self.vismInput.text())
                 
     def stellarComponent(self,waveGrid,lineCen,radialVel,fwhmG,fwhmL,fluxAmp):
         lineCen=lineCen*((radialVel/3e5)+1) #redshifted line center
@@ -1460,6 +1662,24 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         ulErr=[uu,ll]
         
         return ulErr
+    
+    def coreEnforcer(self,line_wave,line_flux,line_errr,num_prf=1000):
+        #monte carlo of a given emission feature, generating a data point from each flux +/- error
+        #generate N emission profiles, integrate them all, and get an integrated flux distribution
+        samples=np.zeros((num_prf,len(line_wave)))
+        sampflx=np.zeros((num_prf))
+        for k in range(0,num_prf):
+            indiv=[]
+            for l in range(0,len(line_wave)):
+                data_gauss=np.random.normal(line_flux[l],line_errr[l])
+                indiv.append(data_gauss)
+            samples[k]=indiv
+            sampflx[k]=self.integrateFlux(line_wave,indiv) #integrate to a value, erg/cm^2/s
+        ub,mb,lb=np.percentile(sampflx,[84.135,50.0,15.865])
+        uu=ub-mb
+        ll=mb-lb 
+        uliErr=[uu,ll]
+        return uliErr
 
     def runModel(self,twoOverride=False):
         if not twoOverride: #one part or the first half of two part
@@ -1497,7 +1717,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         else: #second half of two part
             tempRecov,tempError,tempRemov,tempRemer=self.oneSpectrum,self.oneError,self.oneRemove,self.oneRemerr
         self.intRecover=self.integrateFlux(self.waveCOS[self.allLinemasks[self.fitIndex]],tempRecov[self.allLinemasks[self.fitIndex]])
-        self.intRecverr=[None,None] 
+        self.intRecverr=self.coreEnforcer(self.waveCOS[self.allLinemasks[self.fitIndex]],tempRecov[self.allLinemasks[self.fitIndex]],tempError[self.allLinemasks[self.fitIndex]]) 
         self.intStellar=self.integrateFlux(self.allWaveinfs[self.fitIndex],self.selfreversalComp)
         try:
             self.intProferr,self.intStelerr=self.powerConstruct(self.allWaveinfs[self.fitIndex],self.pv[0],[self.pv[1],self.pe[1]],[self.pv[2],self.pe[2]],[self.pv[3],self.pe[3]],[self.pv[4],self.pe[4]])
@@ -1517,22 +1737,21 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             self.intStelerr=[None,None]
             self.intBesterr=[None,None]
         if self.readySTIS:
+            #!!!may not need this anymore now that STIS data in the main GUI is updated in the STIS window
             maskSTIS=((self.currentRange[0]<=self.waveSTIS)&(self.waveSTIS<=self.currentRange[1]))
             try: #if no STIS data is present within the current range, cannot integrate
-                self.intSTISdat=self.integrateFlux(self.waveSTIS[maskSTIS],self.fluxSTIS[maskSTIS]*self.sfSTIS)
-                self.intSTISerr=False
+                self.intSTISdat=self.integrateFlux(self.waveSTIS[maskSTIS],self.fluxSTIS[maskSTIS]*self.sfSTIS[self.fitIndex]) #sfSTIS is not necessarily 1.0 here, need to scale
+                self.intSTISerr=self.coreEnforcer(self.waveSTIS[maskSTIS],self.fluxSTIS[maskSTIS]*self.sfSTIS[self.fitIndex],self.errrSTIS[maskSTIS]*self.sfSTIS[self.fitIndex])
             except:
                 self.intSTISdat=0.0
-                self.intSTISerr=False       
+                self.intSTISerr=[False,False]       
 
     def runModel2(self):
         self.runModel()
         self.oneSpectrum,self.oneError,self.oneRemove,self.oneRemerr=self.recoverTrue(self.waveCOS,self.fluxCOS,self.errrCOS,self.pv[10]+self.allFitshifts[self.fitIndex],self.pv[11]*self.allFitscales[self.fitIndex],self.currentLine)
         self.airH=self.pv[10]
-        #print(self.airH)
         self.airHerr=self.pe[10]
         self.airV=self.pv[11]
-        #print(self.airV)
         self.airVerr=self.pe[11]
         self.runModel(twoOverride=True)        
 
@@ -1552,62 +1771,104 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.fitScale.setDisabled(False)
 
     def onePart(self,selected):
-       if selected:
-            self.whichFit=1 #one part=1
-            
-            if not self.fitExists and self.whichAir!=None:
-                self.readyFit()
-            
-            if self.fitExists:
-                self.runModel()
-                self.displayPlot()
+        if selected:
+            #user input, make sure change is okay
+            if self.whichFit!=1:
+                proceed=self.fitChanges()
+            else:
+                proceed=False #if value is the same, then no need to recalculate the same fit
+            if proceed:
+                self.whichFit=1 #one part=1
+                
+                if not self.fitExists and self.whichAir!=None:
+                    self.readyFit()
+                
+                if self.fitExists:
+                    self.runModel()
+                    self.displayPlot()
+            else:
+                self.twoFit.toggled.disconnect()
+                self.twoFit.toggle() #disconnect, reselect, reconnect
+                self.twoFit.toggled.connect(self.twoPart)
                 
     def twoPart(self,selected):
         if selected:
-            self.whichFit=2 #two part=2
-            
-            if not self.fitExists and self.whichAir!=None:
-                self.readyFit()
-            
-            if self.fitExists:
-                self.runModel2() #runs the model for 2 part fitting
-                self.displayPlot()
+            #user input, make sure change is okay
+            if self.whichFit!=2:
+                proceed=self.fitChanges()
+            else:
+                proceed=False #if value is the same, then no need to recalculate the same fit
+            if proceed:
+                self.whichFit=2 #two part=2
+                
+                if not self.fitExists and self.whichAir!=None:
+                    self.readyFit()
+                
+                if self.fitExists:
+                    self.runModel2() #runs the model for 2 part fitting
+                    self.displayPlot()
+            else:
+                self.oneFit.toggled.disconnect()
+                self.oneFit.toggle() #disconnect, reselect, reconnect
+                self.oneFit.toggled.connect(self.onePart)
             
     def autoMode(self,selected):
         if selected:
-            self.whichAir=0
-
-            if not self.fitExists and self.whichFit!=None:
-                self.readyFit()
-                
-            if self.fitExists:
-                if self.whichFit==1:
-                    self.runModel()
-                else:
-                    self.runModel2()
-                self.displayPlot()
+            #user input, make sure change is okay
+            if self.whichFit!=2:
+                proceed=self.fitChanges()
+            else:
+                proceed=False #if value is the same, then no need to recalculate the same fit
+            if proceed:
+                self.whichAir=0
+    
+                if not self.fitExists and self.whichFit!=None:
+                    self.readyFit()
+                    
+                if self.fitExists:
+                    if self.whichFit==1:
+                        self.runModel()
+                    else:
+                        self.runModel2()
+                    self.displayPlot()
+            else:
+               self.manualAirmode.toggled.disconnect()
+               self.manualAirmode.toggle()
+               self.manualAirmode.toggled.connect(self.manualMode)
+               
                
     def manualMode(self,selected):
         if selected:
-            self.whichAir=1
-            
-            if not self.fitExists and self.whichFit!=None:
-                self.readyFit()
-            
-            if self.fitExists:
-                if self.whichFit==1:
-                    self.runModel()
-                else:
-                    self.runModel2()
-                self.displayPlot()
+            #user input, make sure change is okay
+            if self.whichFit!=2:
+                proceed=self.fitChanges()
+            else:
+                proceed=False #if value is the same, then no need to recalculate the same fit
+            if proceed:
+                self.whichAir=1
+                
+                if not self.fitExists and self.whichFit!=None:
+                    self.readyFit()
+                
+                if self.fitExists:
+                    if self.whichFit==1:
+                        self.runModel()
+                    else:
+                        self.runModel2()
+                    self.displayPlot()
+            else:
+                self.autoAirmode.toggled.disconnect()
+                self.autoAirmode.toggle()
+                self.autoAirmode.toggled.connect(self.autoMode)
+                
                 
     def changeShift(self):
         try:
             temp_valH=int(round(float(self.shiftInput.text())*(1500.0/1.5))) #convert value back to -1500..1500 range
             isFloat=True
         except:
-            notFloat=QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float!',QtWidgets.QMessageBox.Ok)
-            if notFloat==QtWidgets.QMessageBox.Ok:
+            notFloat=QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float!',QtWidgets.QMessageBox.StandardButton.Ok)
+            if notFloat==QtWidgets.QMessageBox.StandardButton.Ok:
                 isFloat=False
                 
         if isFloat:
@@ -1618,17 +1879,26 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             else:
                 unscaled_valH=temp_valH
                 
-            self.scaled_valH=round(unscaled_valH*(1.5/1500.0),3)
-            self.shiftInput.setText(str(self.scaled_valH))
-            self.airShift.setValue(unscaled_valH)
-            self.allShifts[self.fitIndex]=self.scaled_valH
-            QtWidgets.QApplication.focusWidget().clearFocus() #after pressing enter, textbox is no longer selected
-            
-            if self.whichFit==1:
-                self.runModel()
+            #user input, make sure change is okay
+            if round(unscaled_valH*(1.5/1500.0),3)!=self.scaled_valH:
+                proceed=self.fitChanges()
             else:
-                self.runModel2()
-            self.displayPlot()
+                proceed=False #if value is the same, then no need to recalculate the same fit
+            if proceed:
+                self.scaled_valH=round(unscaled_valH*(1.5/1500.0),3)
+                self.shiftInput.setText(str(self.scaled_valH))
+                self.airShift.setValue(unscaled_valH)
+                self.allShifts[self.fitIndex]=self.scaled_valH
+                QtWidgets.QApplication.focusWidget().clearFocus() #after pressing enter, textbox is no longer selected
+                
+                if self.whichFit==1:
+                    self.runModel()
+                else:
+                    self.runModel2()
+                self.displayPlot()
+            else:
+                self.shiftInput.setText(str(self.scaled_valH)) #return original value back to the input box
+                QtWidgets.QApplication.focusWidget().clearFocus() #after pressing enter, textbox is no longer selected
             
     def shiftDis(self):
         pass
@@ -1638,25 +1908,35 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.airShift.valueChanged.emit(self.airShift.value())
         
     def shiftApply(self,value):
-        self.scaled_valH=round(value*(1.5/1500.0),3)
-        self.shiftInput.setText(str(self.scaled_valH))
-        self.allShifts[self.fitIndex]=self.scaled_valH
-        self.airShift.valueChanged.disconnect()
-        
-        if not self.fitOverride:
-            if self.whichFit==1:
-                self.runModel()
-            else:
-                self.runModel2()
-            self.displayPlot()
+        #user input, make sure change is okay
+        if round(value*(1.5/1500.0),3)!=self.scaled_valH:
+            proceed=self.fitChanges()
+        else:
+            proceed=False #if value is the same, then no need to recalculate the same fit
+        if proceed:
+            self.scaled_valH=round(value*(1.5/1500.0),3)
+            self.shiftInput.setText(str(self.scaled_valH))
+            self.allShifts[self.fitIndex]=self.scaled_valH
+            self.airShift.valueChanged.disconnect()
+            
+            if not self.fitOverride:
+                if self.whichFit==1:
+                    self.runModel()
+                else:
+                    self.runModel2()
+                self.displayPlot()
+        else:
+            self.airShift.valueChanged.disconnect() #disconnect before changing value, or else this function will be called on again
+            self.airShift.setValue(int(round(self.scaled_valH*(1500.0/1.5)))) #return slider to original value
+                
         
     def changeScale(self):
         try:
             temp_valV=int(round(float(self.scaleInput.text())*(1000.0/10.0))) #convert value back to 0..1000 range
             isFloat=True
         except:
-            notFloat=QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float!',QtWidgets.QMessageBox.Ok)
-            if notFloat==QtWidgets.QMessageBox.Ok:
+            notFloat=QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float!',QtWidgets.QMessageBox.StandardButton.Ok)
+            if notFloat==QtWidgets.QMessageBox.StandardButton.Ok:
                 isFloat=False
                 
         if isFloat:
@@ -1667,17 +1947,26 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             else:
                 unscaled_valV=temp_valV
                 
-            self.scaled_valV=round(unscaled_valV*(10.0/1000.0),2)
-            self.scaleInput.setText(str(self.scaled_valV))
-            self.airScale.setValue(unscaled_valV)
-            self.allScales[self.fitIndex]=self.scaled_valV
-            QtWidgets.QApplication.focusWidget().clearFocus() #after pressing enter, textbox is no longer selected
-            
-            if self.whichFit==1:
-                self.runModel()
+            #user input, make sure change is okay
+            if round(unscaled_valV*(10.0/1000.0),2)!=self.scaled_valV:
+                proceed=self.fitChanges()
             else:
-                self.runModel2()
-            self.displayPlot()
+                proceed=False #if value is the same, then no need to recalculate the same fit
+            if proceed:                
+                self.scaled_valV=round(unscaled_valV*(10.0/1000.0),2)
+                self.scaleInput.setText(str(self.scaled_valV))
+                self.airScale.setValue(unscaled_valV)
+                self.allScales[self.fitIndex]=self.scaled_valV
+                QtWidgets.QApplication.focusWidget().clearFocus() #after pressing enter, textbox is no longer selected
+                
+                if self.whichFit==1:
+                    self.runModel()
+                else:
+                    self.runModel2()
+                self.displayPlot()
+            else:
+                self.scaleInput.setText(str(self.scaled_valV)) #return original value back to the input box
+                QtWidgets.QApplication.focusWidget().clearFocus() #after pressing enter, textbox is no longer selected
             
     def scaleDis(self):
         pass
@@ -1687,25 +1976,35 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         self.airScale.valueChanged.emit(self.airScale.value())
         
     def scaleApply(self,value):
-        self.scaled_valV=round(value*(10.0/1000.0),2)
-        self.scaleInput.setText(str(self.scaled_valV))
-        self.allScales[self.fitIndex]=self.scaled_valV
-        self.airScale.valueChanged.disconnect()
-        
-        if not self.fitOverride:
-            if self.whichFit==1:
-                self.runModel()
-            else:
-                self.runModel2()
-            self.displayPlot()
+        #user input, make sure change is okay
+        if round(value*(10.0/1000.0),2)!=self.scaled_valV:
+            proceed=self.fitChanges()
+        else:
+            proceed=False #if value is the same, then no need to recalculate the same fit
+        if proceed:
+            self.scaled_valV=round(value*(10.0/1000.0),2)
+            self.scaleInput.setText(str(self.scaled_valV))
+            self.allScales[self.fitIndex]=self.scaled_valV
+            self.airScale.valueChanged.disconnect()
+            
+            if not self.fitOverride:
+                if self.whichFit==1:
+                    self.runModel()
+                else:
+                    self.runModel2()
+                self.displayPlot()
+        else:
+            self.airScale.valueChanged.disconnect() #disconnect before changing value, or else this function will be called on again
+            self.airScale.setValue(int(round(self.scaled_valV*(1000.0/10.0)))) #return slider to original value   
+            
         
     def applyShift(self):
         try:
             temp_valFH=int(round(float(self.fitshiftInput.text())*(1500.0/1.5))) #convert value back to -1500..1500 range
             isFloat=True
         except:
-            notFloat=QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float!',QtWidgets.QMessageBox.Ok)
-            if notFloat==QtWidgets.QMessageBox.Ok:
+            notFloat=QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float!',QtWidgets.QMessageBox.StandardButton.Ok)
+            if notFloat==QtWidgets.QMessageBox.StandardButton.Ok:
                 isFloat=False
                 
         if isFloat:
@@ -1715,27 +2014,58 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 unscaled_valFH=-1500
             else:
                 unscaled_valFH=temp_valFH
-            self.scaled_valFH=round(unscaled_valFH*(1.5/1500.0),3)
-            self.fitshiftInput.setText(str(self.scaled_valFH))
-            self.fitShift.setValue(unscaled_valFH)
-            self.allFitshifts[self.fitIndex]=self.scaled_valFH
-            self.displayPlot()
-            QtWidgets.QApplication.focusWidget().clearFocus() #after pressing enter, textbox is no longer selected
+                
+            #user input, make sure change is okay
+            if round(unscaled_valFH*(1.5/1500.0),3)!=self.scaled_valFH:
+                self.fitSlider=True #change came from a fit slider, best fit needs to be recalculated if residuals and/or RRCBB need to be reset
+                proceed=self.fitChanges()
+                self.fitSlider=False #whether proceed happens or not, reset this back to False to prevent it from running unnecessarily
+            else:
+                proceed=False #if value is the same, then no need to recalculate the same fit
+            if proceed:
+                self.scaled_valFH=round(unscaled_valFH*(1.5/1500.0),3)
+                self.fitshiftInput.setText(str(self.scaled_valFH))
+                self.fitShift.setValue(unscaled_valFH)
+                self.allFitshifts[self.fitIndex]=self.scaled_valFH
+                self.displayPlot()
+                QtWidgets.QApplication.focusWidget().clearFocus() #after pressing enter, textbox is no longer selected
+            else:
+                self.fitshiftInput.setText(str(self.scaled_valFH)) #return original value back to the input box
+                QtWidgets.QApplication.focusWidget().clearFocus() #after pressing enter, textbox is no longer selected
             
     
     def shiftFit(self,value):
-        self.scaled_valFH=round(value*(1.5/1500.0),3)
-        self.fitshiftInput.setText(str(self.scaled_valFH))
-        self.allFitshifts[self.fitIndex]=self.scaled_valFH
-        self.displayPlot()
+        mousePos=self.cursor().pos().toPointF() #save cursor location
+        #user input, make sure change is okay
+        if round(value*(1.5/1500.0),3)!=self.scaled_valFH:
+            self.fitSlider=True #change came from a fit slider, best fit needs to be recalculated if residuals and/or RRCBB need to be reset
+            proceed=self.fitChanges()
+            self.fitSlider=False #whether proceed happens or not, reset this back to False to prevent it from running unnecessarily
+        else:
+            proceed=False #if value is the same, then no need to recalculate the same fit
+        if proceed:
+            self.scaled_valFH=round(value*(1.5/1500.0),3)
+            self.fitshiftInput.setText(str(self.scaled_valFH))
+            self.allFitshifts[self.fitIndex]=self.scaled_valFH
+            self.displayPlot()
+        else:
+            self.fitShift.valueChanged.disconnect() #disconnect to change things without calling this function again
+            self.fitShift.setValue(int(round(self.scaled_valFH*(1500.0/1.5)))) #return slider to original value
+            self.fitShift.valueChanged.connect(self.shiftFit) #reconnect
+        
+        #regardless of outcome, the proceed check messes up the slider handle appearance, need to simulate a mouse click to reset it            
+        self.fitShift.valueChanged.disconnect()
+        QtWidgets.QApplication.sendEvent(self.fitShift,QtGui.QMouseEvent(QtCore.QEvent.Type.MouseButtonPress,mousePos,QtCore.Qt.MouseButton.LeftButton,QtCore.Qt.MouseButton.LeftButton,QtCore.Qt.KeyboardModifier.NoModifier)) #press mouse
+        QtWidgets.QApplication.sendEvent(self.fitShift,QtGui.QMouseEvent(QtCore.QEvent.Type.MouseButtonRelease,mousePos,QtCore.Qt.MouseButton.LeftButton,QtCore.Qt.MouseButton.LeftButton,QtCore.Qt.KeyboardModifier.NoModifier)) #release mouse
+        self.fitShift.valueChanged.connect(self.shiftFit)
         
     def applyScale(self):
         try:
             temp_valFV=int(round(float(self.fitscaleInput.text())*(1000.0/10.0))) #convert value back to 0..1000 range
             isFloat=True
         except:
-            notFloat=QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float!',QtWidgets.QMessageBox.Ok)
-            if notFloat==QtWidgets.QMessageBox.Ok:
+            notFloat=QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float!',QtWidgets.QMessageBox.StandardButton.Ok)
+            if notFloat==QtWidgets.QMessageBox.StandardButton.Ok:
                 isFloat=False
                 
         if isFloat:
@@ -1745,19 +2075,50 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 unscaled_valFV=0
             else:
                 unscaled_valFV=temp_valFV
-            self.scaled_valFV=round(unscaled_valFV*(10.0/1000.0),2)
-            self.fitscaleInput.setText(str(self.scaled_valFV))
-            self.fitScale.setValue(unscaled_valFV)
-            self.allFitscales[self.fitIndex]=self.scaled_valFV
-            self.displayPlot()
-            QtWidgets.QApplication.focusWidget().clearFocus() #after pressing enter, textbox is no longer selected
+                
+            #user input, make sure change is okay
+            if round(unscaled_valFV*(10.0/1000.0),2)!=self.scaled_valFV:
+                self.fitSlider=True #change came from a fit slider, best fit needs to be recalculated if residuals and/or RRCBB need to be reset
+                proceed=self.fitChanges()
+                self.fitSlider=False #whether proceed happens or not, reset this back to False to prevent it from running unnecessarily
+            else:
+                proceed=False #if value is the same, then no need to recalculate the same fit
+            if proceed:
+                self.scaled_valFV=round(unscaled_valFV*(10.0/1000.0),2)
+                self.fitscaleInput.setText(str(self.scaled_valFV))
+                self.fitScale.setValue(unscaled_valFV)
+                self.allFitscales[self.fitIndex]=self.scaled_valFV
+                self.displayPlot()
+                QtWidgets.QApplication.focusWidget().clearFocus() #after pressing enter, textbox is no longer selected
+            else:
+                self.fitscaleInput.setText(str(self.scaled_valFV)) #return original value back to the input box
+                QtWidgets.QApplication.focusWidget().clearFocus() #after pressing enter, textbox is no longer selected
             
     
     def scaleFit(self,value):
-        self.scaled_valFV=round(value*(10.0/1000.0),2)
-        self.fitscaleInput.setText(str(self.scaled_valFV))
-        self.allFitscales[self.fitIndex]=self.scaled_valFV
-        self.displayPlot()
+        mousePos=self.cursor().pos().toPointF() #save cursor location
+        #user input, make sure change is okay
+        if round(value*(10.0/1000.0),2)!=self.scaled_valFV:
+            self.fitSlider=True #change came from a fit slider, best fit needs to be recalculated if residuals and/or RRCBB need to be reset
+            proceed=self.fitChanges()
+            self.fitSlider=False #whether proceed happens or not, reset this back to False to prevent it from running unnecessarily
+        else:
+            proceed=False #if value is the same, then no need to recalculate the same fit
+        if proceed:
+            self.scaled_valFV=round(value*(10.0/1000.0),2)
+            self.fitscaleInput.setText(str(self.scaled_valFV))
+            self.allFitscales[self.fitIndex]=self.scaled_valFV
+            self.displayPlot()
+        else:
+            self.fitScale.valueChanged.disconnect() #disconnect to change things without calling this function again
+            self.fitScale.setValue(int(round(self.scaled_valFV*(1000.0/10.0)))) #return slider to original value
+            self.fitScale.valueChanged.connect(self.scaleFit) #reconnect
+        
+        #regardless of outcome, the proceed check messes up the slider handle appearance, need to simulate a mouse click to reset it
+        self.fitScale.valueChanged.disconnect()
+        QtWidgets.QApplication.sendEvent(self.fitScale,QtGui.QMouseEvent(QtCore.QEvent.Type.MouseButtonPress,mousePos,QtCore.Qt.MouseButton.LeftButton,QtCore.Qt.MouseButton.LeftButton,QtCore.Qt.KeyboardModifier.NoModifier)) #press mouse
+        QtWidgets.QApplication.sendEvent(self.fitScale,QtGui.QMouseEvent(QtCore.QEvent.Type.MouseButtonRelease,mousePos,QtCore.Qt.MouseButton.LeftButton,QtCore.Qt.MouseButton.LeftButton,QtCore.Qt.KeyboardModifier.NoModifier)) #release mouse
+        self.fitScale.valueChanged.connect(self.scaleFit)
         
     def toggleComponents(self):
         self.showComps=not(self.showComps)
@@ -1768,20 +2129,10 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         dialogVals.exec()
         
     def readyCutoff(self):
-        if not self.cutoffDone[self.fitIndex]: #furst time doing a cutoff for this line
-            self.origmask=self.allLinemasks[self.fitIndex]
-            self.origbest=self.bestFit
-            self.origberr=self.intBesterr
-            self.origfiti=[self.allShifts[self.fitIndex],self.allScales[self.fitIndex],self.allFitshifts[self.fitIndex],self.allFitscales[self.fitIndex],self.radVelocity,self.radISMVelocity,self.whichFit,self.whichAir,self.currentRange]
-            self.cutoffDone[self.fitIndex]=True #prevent these arrays from getting overwritten
-        else:
-            self.testfiti=[self.allShifts[self.fitIndex],self.allScales[self.fitIndex],self.allFitshifts[self.fitIndex],self.allFitscales[self.fitIndex],self.radVelocity,self.radISMVelocity,self.whichFit,self.whichAir,self.currentRange]
-            if self.testfiti!=self.origfiti:
-                #if the fit has changed in any way, make a new cutoff window display
-                self.origmask=self.allLinemasks[self.fitIndex]
-                self.origbest=self.bestFit
-                self.origberr=self.intBesterr
-                self.origfiti=[self.allShifts[self.fitIndex],self.allScales[self.fitIndex],self.allFitshifts[self.fitIndex],self.allFitscales[self.fitIndex],self.radVelocity,self.radISMVelocity,self.whichFit,self.whichAir,self.currentRange]
+        if not self.useCutoff[self.fitIndex]: #first time doing a cutoff for this line
+            self.origMasks[self.fitIndex]=self.allLinemasks[self.fitIndex]
+            self.origBests[self.fitIndex]=self.bestFit 
+            self.origBerrs[self.fitIndex]=self.intBesterr
         #becuase this is a main window, I need to link it to the parent main window (or else it will close randomly)
         self.dialogResid=residualWindow()
         self.dialogResid.show()
@@ -1897,9 +2248,9 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         else:
             plt.plot(self.waveCOS[self.allLinemasks[self.fitIndex]],self.convolvedComp*self.allFitscales[self.fitIndex],label='Convolved Stellar Emission',linewidth=2,linestyle='--',color='C5')
         if self.readySTIS and not self.overrideSTIS:
-            plt.plot(self.waveSTIS,self.fluxSTIS*self.sfSTIS,label='Scaled STIS Spectrum',linewidth=2,color='C2')
-            plt.fill_between(self.waveSTIS,(self.fluxSTIS+self.errrSTIS)*self.sfSTIS,(self.fluxSTIS-self.errrSTIS)*self.sfSTIS,alpha=0.25,color='C2')
-            ax[1][1].set_title('Comparison to STIS (scaled by '+str(round(self.sfSTIS,2))+')',fontsize=18)
+            plt.plot(self.waveSTIS,self.fluxSTIS*self.sfSTIS[self.fitIndex],label='Scaled STIS Spectrum',linewidth=2,color='C2')
+            plt.fill_between(self.waveSTIS,(self.fluxSTIS+self.errrSTIS)*self.sfSTIS[self.fitIndex],(self.fluxSTIS-self.errrSTIS)*self.sfSTIS[self.fitIndex],alpha=0.25,color='C2')
+            ax[1][1].set_title('Comparison to STIS (scaled by '+str(round(self.sfSTIS[self.fitIndex],2))+')',fontsize=18)
         else:
             ax[1][1].set_title('Recovered Stellar Spectrum',fontsize=18)
         plt.xlim(self.currentRange[0],self.currentRange[1])
@@ -2029,7 +2380,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                 
             if self.readySTIS and not self.overrideSTIS:
                 stisMask=((self.currentRange[0]<=self.waveSTIS)&(self.waveSTIS<=self.currentRange[1]))
-                self.ymaxL=max(np.max((self.fluxSTIS*self.sfSTIS)[stisMask]),np.max(self.fluxSTIS[stisMask]),np.max(self.trueSpectrum[self.allLinemasks[self.fitIndex]]))
+                self.ymaxL=max(np.max((self.fluxSTIS*self.sfSTIS[self.fitIndex])[stisMask]),np.max(self.fluxSTIS[stisMask]),np.max(self.trueSpectrum[self.allLinemasks[self.fitIndex]]))
             else:
                 self.ymaxL=np.max(self.trueSpectrum[self.allLinemasks[self.fitIndex]])
                 
@@ -2047,8 +2398,8 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             self.compMax=np.max(self.fluxfitDiff[self.allLinemasks[self.fitIndex]])
             if self.readySTIS and not self.overrideSTIS:
                 self.trueInterp=np.interp(self.waveSTIS,self.waveCOS,self.trueSpectrum)
-                self.stistrueDiff=(self.fluxSTIS*self.sfSTIS)-self.trueInterp
-                self.diffNorm=self.stistrueDiff/(self.errrSTIS*self.sfSTIS)
+                self.stistrueDiff=(self.fluxSTIS*self.sfSTIS[self.fitIndex])-self.trueInterp
+                self.diffNorm=self.stistrueDiff/(self.errrSTIS*self.sfSTIS[self.fitIndex])
                 self.diffMin=np.min(self.stistrueDiff[stisMask])
                 self.diffMax=np.max(self.stistrueDiff[stisMask])
                 
@@ -2067,8 +2418,13 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             self.finalBest[self.fitIndex]=self.bestFit
             self.finalBesterr[self.fitIndex]=self.intBesterr #upper and lower
             self.finalIfluxrecv[self.fitIndex]=self.intRecover
+            self.finalIfluxrerr[self.fitIndex]=self.intRecverr #upper and lower
             self.finalIfluxstel[self.fitIndex]=self.intStellar
             self.finalIfluxserr[self.fitIndex]=self.intStelerr #upper and lower
+            if self.readySTIS and not self.overrideSTIS:
+                self.finalIfluxstis[self.fitIndex]=self.intSTISdat
+                self.finalIfluxster[self.fitIndex]=self.intSTISerr #upper and lower
+                self.finalSTISscale[self.fitIndex]=self.sfSTIS[self.fitIndex]
             self.finalFitmode[self.fitIndex]=self.whichFit
             self.finalAirmode[self.fitIndex]=self.whichAir
             self.finalCutoffs[self.fitIndex]=self.allCutoffs[self.fitIndex]
@@ -2200,8 +2556,21 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
     
     def saveTrue(self):
         saveReady=True
-        lineWarning=QtWidgets.QMessageBox.question(self,'Do you want to continue?','Do you want to save this recovered spectrum?\n Press No to continue creating the recovered spectrum.',QtWidgets.QMessageBox.Yes|QtWidgets.QMessageBox.No)
-        if lineWarning==QtWidgets.QMessageBox.No:
+        
+        #construct a simple messagebox with a check mark (makinga  separate QDialog in QtDesigner would have been overkill)
+        saveDialog=QtWidgets.QMessageBox()
+        saveDialog.setIcon(QtWidgets.QMessageBox.Icon.Question)
+        saveDialog.setWindowTitle('Do you want to continue?')
+        saveDialog.setText('Do you want to save this recovered spectrum?\n Press No to continue creating the recovered spectrum.')
+        saveDialog.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Yes|QtWidgets.QMessageBox.StandardButton.No)
+        saveCheck=QtWidgets.QCheckBox('Save Individual RRCBB Samples?')
+        saveCheck.setToolTip('File size can be large (100s of MB), unchecking will still save RRCBB error values')
+        if True in self.bootDone:
+            saveCheck.setChecked(True) #checked by default if at least one bootstrap was performed
+        saveDialog.setCheckBox(saveCheck)
+        saveValue=saveDialog.exec()
+
+        if saveValue==QtWidgets.QMessageBox.StandardButton.No:
             saveReady=False
         
         if saveReady:
@@ -2215,8 +2584,12 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             self.finalBest=[np.zeros(len(self.waveCOS)) if isinstance(self.finalBest[bb],bool) else self.formatInf(self.waveCOS[self.finalLinemasks[bb]],self.finalBest[bb]) for bb in range(0,len(self.finalBest))]
             self.finalBesterr=[[np.zeros(len(self.waveCOS))]*2 if isinstance(self.finalBesterr[dd],bool) else self.formatInf(self.waveCOS[self.finalLinemasks[dd]],self.finalBesterr[dd]) for dd in range(0,len(self.finalBesterr))]            
             self.finalIfluxrecv=['N/A' if isinstance(e,bool) else e for e in self.finalIfluxrecv]
+            self.finalIfluxrerr=[[0,0] if isinstance(ii,bool) else ii for ii in self.finalIfluxrerr]
             self.finalIfluxstel=['N/A' if isinstance(ee,bool) else ee for ee in self.finalIfluxstel]
             self.finalIfluxserr=[[0,0] if isinstance(ff,bool) else ff for ff in self.finalIfluxserr]
+            self.finalIfluxstis=['N/A' if isinstance(jj,bool) else jj for jj in self.finalIfluxstis]
+            self.finalIfluxster=[[0,0] if isinstance(kk,bool) else kk for kk in self.finalIfluxster]
+            self.finalSTISscale=['N/A' if isinstance(oo,bool) else oo for oo in self.finalSTISscale]
             self.finalFitmode=['N/A' if isinstance(aa,bool) else aa for aa in self.finalFitmode]
             self.finalAirmode=['N/A' if isinstance(f,bool) else f for f in self.finalAirmode]
             self.finalEmethod=['RRCBB' if isinstance(g,bool) and g==True else 'LMFIT' for g in self.finalEmethod]
@@ -2267,23 +2640,27 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
             if name2[0]: #utf-16 to display Å and α properly, and newline='' fixes line skipping in the csv, '\t' allows for csv.write to work with utf-16
                 with open(name2[0],mode='w',encoding='utf-16',newline='') as dataline: #wavelength, flux, and error arrays
                     line=csv.writer(dataline, delimiter='\t')
-                    line.writerow(['Wavelength (Å)','Recovered Flux (erg cm^-2 s^-1 Å^-1)','Recovered Error (erg cm^-2 s^-1 Å^-1)','Lyα Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','Lyα Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','Lyα Modeled SR Attenuated Flux + Error (erg cm^-2 s^-1 Å^-1)','Lyα Modeled SR Attenuated Flux - Error (erg cm^-2 s^-1 Å^-1)', 'Lyα Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','Lyα Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','Lyα Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','Lyα Best Fit (erg cm^-2 s^-1 Å^-1)','Lyα Best Fit + Error (erg cm^-2 s^-1 Å^-1)','Lyα Best Fit - Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR Attenuated Flux + Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR Attenuated Flux - Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Best Fit (erg cm^-2 s^-1 Å^-1)','OI 1302 Best Fit + Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Best Fit - Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR Attenuated Flux + Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR Attenuated Flux - Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Best Fit (erg cm^-2 s^-1 Å^-1)','OI 1305 Best Fit + Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Best Fit - Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR Attenuated Flux + Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR Attenuated Flux - Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Best Fit (erg cm^-2 s^-1 Å^-1)','OI 1306 Best Fit + Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Best Fit - Error (erg cm^-2 s^-1 Å^-1)'])
+                    line.writerow(['Wavelength (Å)','Recovered Flux (erg cm^-2 s^-1 Å^-1)','Recovered Error (erg cm^-2 s^-1 Å^-1)','Lyα Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','Lyα Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','Lyα Modeled SR Attenuated Flux Error+ (erg cm^-2 s^-1 Å^-1)','Lyα Modeled SR Attenuated Flux Error- (erg cm^-2 s^-1 Å^-1)', 'Lyα Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','Lyα Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','Lyα Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','Lyα Best Fit (erg cm^-2 s^-1 Å^-1)','Lyα Best Fit Error+ (erg cm^-2 s^-1 Å^-1)','Lyα Best Fit Error- (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR Attenuated Flux Error+ (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR Attenuated Flux Error- (erg cm^-2 s^-1 Å^-1)','OI 1302 Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','OI 1302 Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','OI 1302 Best Fit (erg cm^-2 s^-1 Å^-1)','OI 1302 Best Fit Error+ (erg cm^-2 s^-1 Å^-1)','OI 1302 Best Fit Error- (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR Attenuated Flux Error+ (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR Attenuated Flux Error- (erg cm^-2 s^-1 Å^-1)','OI 1305 Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','OI 1305 Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','OI 1305 Best Fit (erg cm^-2 s^-1 Å^-1)','OI 1305 Best Fit Error+ (erg cm^-2 s^-1 Å^-1)','OI 1305 Best Fit Error- (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled Stellar Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR Attenuated Flux Error+ (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR Attenuated Flux Error- (erg cm^-2 s^-1 Å^-1)','OI 1306 Modeled SR + ISM Attenuated Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Removed Airglow Flux (erg cm^-2 s^-1 Å^-1)','OI 1306 Removed Airglow Error (erg cm^-2 s^-1 Å^-1)','OI 1306 Best Fit (erg cm^-2 s^-1 Å^-1)','OI 1306 Best Fit Error+ (erg cm^-2 s^-1 Å^-1)','OI 1306 Best Fit Error- (erg cm^-2 s^-1 Å^-1)'])
                     for s in range(0,len(self.waveCOS)):
                         line.writerow([self.waveCOS[s],self.trueSpectrum[s],               self.propError[s],                      self.finalStellar[0][s],                         self.finalReversal[0][s],                              self.starproferr[0][0][s],                                      self.starproferr[0][1][s],                                     self.finalISM[0][s],                                         self.finalAirglow[0][s],                         self.finalAirgerr[0][s],                          self.finalBest[0][s],                self.bestproferr[0][0][s],                   self.bestproferr[0][1][s],                   self.finalStellar[1][s],                             self.finalReversal[1][s],                                  self.starproferr[1][0][s],                                         self.starproferr[1][1][s],                                         self.finalISM[1][s],                                             self.finalAirglow[1][s],                             self.finalAirgerr[1][s],                              self.finalBest[1][s],                    self.bestproferr[1][0][s],                       self.bestproferr[1][1][s],                       self.finalStellar[2][s],                             self.finalReversal[2][s],                                  self.starproferr[2][0][s],                                         self.starproferr[2][1][s],                                         self.finalISM[2][s],                                             self.finalAirglow[2][s],                             self.finalAirgerr[2][s],                              self.finalBest[2][s],                    self.bestproferr[2][0][s],                       self.bestproferr[2][1][s],                       self.finalStellar[3][s],                             self.finalReversal[3][s],                                  self.starproferr[3][0][s],                                         self.starproferr[3][1][s],                                         self.finalISM[3][s],                                             self.finalAirglow[3][s],                             self.finalAirgerr[3][s],                             self.finalBest[3][s],                     self.bestproferr[3][0][s],                       self.bestproferr[3][1][s]])
                 with open(name2[0][:-4]+'-Additional Data.csv',mode='w',encoding='utf-16',newline='') as dataline: #best fit parameters and user inputs
                     line=csv.writer(dataline,delimiter='\t')
-                    line.writerow(['Parameter','Lyα Value','Lyα Value + Error','Lyα Value - Error','OI 1302 Value','OI 1302 Value + Error','OI 1302 Value - Error','OI 1305 Value','OI 1305 Value + Error','OI 1305 Value - Error','OI 1306 Value','OI 1306 Value + Error','OI 1306 Value - Error'])
+                    line.writerow(['Parameter','Lyα Value','Lyα Value Error+','Lyα Value Error-','OI 1302 Value','OI 1302 Value Error+','OI 1302 Value Error-','OI 1305 Value','OI 1305 Value Error+','OI 1305 Value Error-','OI 1306 Value','OI 1306 Value Error+','OI 1306 Value Error-'])
                     for y in range(0,len(formattedParams)):
                         line.writerow(formattedParams[y])
                     line.writerow(['','','']) #separator
-                    line.writerow(['Integrated Fluxes','Lyα Flux','Lyα Flux + Error','Lyα Flux - Error','OI2 Flux','OI2 Flux + Error','OI2 Flux - Error','OI5 Flux','OI5 Flux + Error','OI5 Flux - Error','OI6 Flux','OI6 Flux + Error','OI6 Flux - Error']) 
+                    line.writerow(['Integrated Fluxes','Lyα Flux','Lyα Flux Error+','Lyα Flux Error-','OI2 Flux','OI2 Flux Error+','OI2 Flux Error-','OI5 Flux','OI5 Flux Error+','OI5 Flux Error-','OI6 Flux','OI6 Flux Error+','OI6 Flux Error-']) 
                     line.writerow(['Stellar Flux',self.finalIfluxstel[0],self.starerr[0][0],self.starerr[0][1],self.finalIfluxstel[1],self.starerr[1][0],self.starerr[1][1],self.finalIfluxstel[2],self.starerr[2][0],self.starerr[2][1],self.finalIfluxstel[3],self.starerr[3][0],self.starerr[3][1]])
-                    line.writerow(['Recovered Flux',self.finalIfluxrecv[0],'N/A','N/A',self.finalIfluxrecv[1],'N/A','N/A',self.finalIfluxrecv[2],'N/A','N/A',self.finalIfluxrecv[3],'N/A','N/A'])
+                    line.writerow(['Recovered Flux',self.finalIfluxrecv[0],self.finalIfluxrerr[0][0],self.finalIfluxrerr[0][1],self.finalIfluxrecv[1],self.finalIfluxrerr[1][0],self.finalIfluxrerr[1][1],self.finalIfluxrecv[2],self.finalIfluxrerr[2][0],self.finalIfluxrerr[2][1],self.finalIfluxrecv[3],self.finalIfluxrerr[3][0],self.finalIfluxrerr[3][1]])
+                    line.writerow(['Scaled STIS Flux',self.finalIfluxstis[0],self.finalIfluxster[0][0],self.finalIfluxster[0][1],self.finalIfluxstis[1],self.finalIfluxster[1][0],self.finalIfluxster[1][1],self.finalIfluxstis[2],self.finalIfluxster[2][0],self.finalIfluxster[2][1],self.finalIfluxstis[3],self.finalIfluxster[3][0],self.finalIfluxster[3][1]])
                     line.writerow(['','','']) #separator
                     line.writerow(['Fit Information','Lyα','OI 1302','OI 1305','OI 1306'])
                     line.writerow(['Fit Mode',self.finalFitmode[0],self.finalFitmode[1],self.finalFitmode[2],self.finalFitmode[3]])
                     line.writerow(['Airglow Mode',self.finalAirmode[0],self.finalAirmode[1],self.finalAirmode[2],self.finalAirmode[3]])
                     line.writerow(['Parameter Errors',self.finalEmethod[0],self.finalEmethod[1],self.finalEmethod[2],self.finalEmethod[3]])
+                    line.writerow(['LP3 1327',['True' if ll else 'False' for ll in [self.specialLyA]][0],'N/A','N/A','N/A']) #only matters for LyA
+                    line.writerow(['M Type',['True' if mm else 'False' for mm in [self.isM]][0],'N/A','N/A','N/A']) #only matters for LyA
+                    line.writerow(['Side A Only',['True' if nn else 'False' for nn in [self.onlyA]][0],'-','-','-']) #applies for all 4 but redundant to include for each line
                     line.writerow(['','','']) #separator
                     line.writerow(['User Input','Lyα Input','OI 1302 Input','OI 1305 Input','OI 1306 Input'])
                     line.writerow(['Initial Guess Shift',self.finalUshifts[0],self.finalUshifts[1],self.finalUshifts[2],self.finalUshifts[3]])
@@ -2295,6 +2672,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
                     line.writerow(['Range Min',str(self.rangeLyA[0]),str(self.rangeOI2[0]),str(self.rangeOI5[0]),str(self.rangeOI6[0])])
                     line.writerow(['Range Max',str(self.rangeLyA[1]),str(self.rangeOI2[1]),str(self.rangeOI5[1]),str(self.rangeOI6[1])])
                     line.writerow(['N. Residual Cutoffs',self.finalCutoffs[0],self.finalCutoffs[1],self.finalCutoffs[2],self.finalCutoffs[3]])
+                    line.writerow(['STIS Scale Factor',self.finalSTISscale[0],self.finalSTISscale[1],self.finalSTISscale[2],self.finalSTISscale[3]])
                     line.writerow(['','','']) #separator
                     line.writerow(['Bootstrap Information','Lyα','OI 1302','OI 1305','OI 1306'])
                     line.writerow(['Block Length',self.finalOptlen[0],self.finalOptlen[1],self.finalOptlen[2],self.finalOptlen[3]])
@@ -2305,7 +2683,7 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
 
                 bootLabel=['Lyα','OI2','OI5','OI6'] 
                 for hh in range(0,len(self.bootDone)):
-                    if self.bootDone[hh]: #only make these files if a bootstrap was performed
+                    if self.bootDone[hh] and saveCheck.isChecked(): #only make these files if a bootstrap was performed and if the box was checked
                         oneBoot={}
                         oneBoot['BOOT']=self.finalRCBfit[hh]
                         oneBoot['STAR']=self.finalRCBste[hh]
@@ -2316,12 +2694,12 @@ class mainWindow(QtWidgets.QMainWindow,UiMainWindow):
         QtWidgets.QApplication.quit()
         #grants access back to the console
         
-class missingWindow(QtWidgets.QDialog,UiFillWindow):
+class missingWindow(QtWidgets.QDialog,missingUi):
     def __init__(self):
         super(missingWindow,self).__init__()
         self.setupUi(self)
         self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
-        self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
+        self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal) #make this the only interactable window while open
         
         #star name lineEdit
         self.inputName.textChanged.connect(self.setStarname)
@@ -2331,6 +2709,7 @@ class missingWindow(QtWidgets.QDialog,UiFillWindow):
         self.life2.toggled.connect(self.position2)
         self.life3.toggled.connect(self.position3)
         self.life4.toggled.connect(self.position4)
+        self.life5.toggled.connect(self.position5)
         
         #special conditions checkboxes
         self.cen1327.stateChanged.connect(self.specialAirglow)
@@ -2346,6 +2725,9 @@ class missingWindow(QtWidgets.QDialog,UiFillWindow):
         self.starSpecial=False
         self.starRed=False
         self.starAonly=False
+        
+        #prevent user from closing this window
+        self.canClose=False
         
         self.show()
         
@@ -2368,32 +2750,36 @@ class missingWindow(QtWidgets.QDialog,UiFillWindow):
         if selected:
             self.starLP=4
             
-    def specialAirglow(self,state):
-        if state==QtCore.Qt.Checked:
-            self.starSpecial=True
+    def position5(self,selected):
+        if selected:
+            self.starLP=5
+            
+    def specialAirglow(self):
+        if self.cen1327.isChecked():
+            self.starSpecial=True #use LP3/1327 LyA template
         else:
-            self.starSpecial=False
+            self.starSpecial=False #use general LyA template
 
-    def srSelector(self,state):
-        if state==QtCore.Qt.Checked:
+    def srSelector(self):
+        if self.mDwarf.isChecked():
             self.starRed=True #no SR component
         else:
             self.starRed=False #yes SR component
 
-    def plateA(self,state):
-        if state==QtCore.Qt.Checked:
-            self.starAonly=True
+    def plateA(self):
+        if self.justA.isChecked():
+            self.starAonly=True #only use side A
         else:
-            self.starAonly=False
+            self.starAonly=False #use both side A and side B
             
     def valApply(self):
         if not isinstance(self.starLP,int):
-            notEnough=QtWidgets.QMessageBox.warning(self,'Missing LP','Please select Lifetime Position!',QtWidgets.QMessageBox.Ok)
-            if notEnough==QtWidgets.QMessageBox.Ok:
+            notEnough=QtWidgets.QMessageBox.warning(self,'Missing LP','Please select Lifetime Position!',QtWidgets.QMessageBox.StandardButton.Ok)
+            if notEnough==QtWidgets.QMessageBox.StandardButton.Ok:
                 pass
         else:
-            correctSettings=QtWidgets.QMessageBox.question(self,'Apply These Settings?','Is everything correct? Nothing can be changed unless you reload the COS file.',QtWidgets.QMessageBox.Yes|QtWidgets.QMessageBox.No)
-            if correctSettings==QtWidgets.QMessageBox.Yes:
+            correctSettings=QtWidgets.QMessageBox.question(self,'Apply These Settings?','Is everything correct? Nothing can be changed unless you reload the COS file.',QtWidgets.QMessageBox.StandardButton.Yes|QtWidgets.QMessageBox.StandardButton.No)
+            if correctSettings==QtWidgets.QMessageBox.StandardButton.Yes:
                 
                 if not isinstance(self.starName,str):
                     GUI.starInput.setText('')
@@ -2423,82 +2809,24 @@ class missingWindow(QtWidgets.QDialog,UiFillWindow):
                 else:
                     GUI.sideLabel.setText('Side A Only: False')
 
+                self.canClose=True
                 self.close()
             else:
                 pass
             
-class missingWindow2(QtWidgets.QDialog,UiFillWindow2):
-    def __init__(self):
-        super(missingWindow2,self).__init__()
-        self.setupUi(self)
-        self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
-        self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
-
-        #special conditions checkboxes
-        self.cen1327.stateChanged.connect(self.specialAirglow)
-        self.mDwarf.stateChanged.connect(self.srSelector)
-        self.justA.stateChanged.connect(self.plateA)
-        
-        #apply push button
-        self.applyValues.clicked.connect(self.valApply)
-        
-        #placeholder values
-        self.starSpecial=False
-        self.starRed=False
-        self.starAonly=False
-        
-        self.show()
-
-    def specialAirglow(self,state):
-        if state==QtCore.Qt.Checked:
-            self.starSpecial=True
+    def closeEvent(self,event):
+        if self.canClose:
+            super(missingWindow,self).closeEvent(event)
         else:
-            self.starSpecial=False
-
-    def srSelector(self,state):
-        if state==QtCore.Qt.Checked:
-            self.starRed=True #no SR component
-        else:
-            self.starRed=False #yes SR component
-
-    def plateA(self,state):
-        if state==QtCore.Qt.Checked:
-            self.starAonly=True
-        else:
-            self.starAonly=False
+            event.ignore()
+            self.setWindowState(QtCore.Qt.WindowState.WindowMinimized)
             
-    def valApply(self):
-        correctSettings=QtWidgets.QMessageBox.question(self,'Apply These Settings?','Is everything correct? Nothing can be changed unless you reload the COS file.',QtWidgets.QMessageBox.Yes|QtWidgets.QMessageBox.No)
-        if correctSettings==QtWidgets.QMessageBox.Yes:
-    
-            if self.starSpecial and GUI.fileLP==3:
-                GUI.specialLyA=True
-                GUI.cen1327Label.setText('LP3 1327: True')
-            else:
-                GUI.cen1327Label.setText('LP3 1327: False')
-                    
-            if self.starRed:
-                GUI.isM=True
-                GUI.spectypeLabel.setText('M Type: True')
-            else:
-                GUI.spectypeLabel.setText('M Type: False')
-            
-            if self.starAonly:
-                GUI.onlyA=True
-                GUI.sideLabel.setText('Side A Only: True')
-            else:
-                GUI.sideLabel.setText('Side A Only: False')
-
-            self.close()
-        else:
-            pass
-        
-class rangeWindow(QtWidgets.QDialog,UiRangeWindow):
+class rangeWindow(QtWidgets.QDialog,rangeUi):
     def __init__(self):
         super(rangeWindow,self).__init__()
         self.setupUi(self)
         self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
-        self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
+        self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal) #make this the only interactable window while open
         
         #initialize values in the user input boxes
         self.minLyA.setText(str(GUI.rangeLyA[0]))
@@ -2569,14 +2897,14 @@ class rangeWindow(QtWidgets.QDialog,UiRangeWindow):
             try:
                 float(minmaxCheck[i])
             except:
-                notFloat=QtWidgets.QMessageBox.warning(self,'Could Not Interpret Input(s)','One or more of the entered values\ncould not be interpreted as a float!',QtWidgets.QMessageBox.Ok)
-                if notFloat==QtWidgets.QMessageBox.Ok:
+                notFloat=QtWidgets.QMessageBox.warning(self,'Could Not Interpret Input(s)','One or more of the entered values\ncould not be interpreted as a float!',QtWidgets.QMessageBox.StandardButton.Ok)
+                if notFloat==QtWidgets.QMessageBox.StandardButton.Ok:
                     allGood=False
                     break
             if i%2==1:
                 if float(minmaxCheck[i])<=float(minmaxCheck[i-1]):
-                    badRange=QtWidgets.QMessageBox.warning(self,'Invalid Range(s)','One or more minimum values are larger\nthan the corresponding maximum values!',QtWidgets.QMessageBox.Ok)
-                    if badRange==QtWidgets.QMessageBox.Ok:
+                    badRange=QtWidgets.QMessageBox.warning(self,'Invalid Range(s)','One or more minimum values are larger\nthan the corresponding maximum values!',QtWidgets.QMessageBox.StandardButton.Ok)
+                    if badRange==QtWidgets.QMessageBox.StandardButton.Ok:
                         allGood=False
                         break
                     
@@ -2586,8 +2914,8 @@ class rangeWindow(QtWidgets.QDialog,UiRangeWindow):
         if np.any(fwOI2==np.inf):
             disableOI2=True #wait to disable the line until the end, after ensuring that everything is all good
             if GUI.currentLine==2:#only prevent the user from leaving this window if this is the currently selected line
-                badOxygen=QtWidgets.QMessageBox.warning(self,'OI 1302 Contains Bad Flux Errors','The OI 1302 wavelength range contains flux error\nvalues that are zero, please edit the line range!',QtWidgets.QMessageBox.Ok)
-                if badOxygen==QtWidgets.QMessageBox.Ok:
+                badOxygen=QtWidgets.QMessageBox.warning(self,'OI 1302 Contains Bad Flux Errors','The OI 1302 wavelength range contains flux error\nvalues that are zero, please edit the line range!',QtWidgets.QMessageBox.StandardButton.Ok)
+                if badOxygen==QtWidgets.QMessageBox.StandardButton.Ok:
                     allGood=False
         else:
             disableOI2=False
@@ -2596,8 +2924,8 @@ class rangeWindow(QtWidgets.QDialog,UiRangeWindow):
         if np.any(fwOI5==np.inf):
             disableOI5=True
             if GUI.currentLine==5:
-                badOxygen=QtWidgets.QMessageBox.warning(self,'OI 1305 Contains Bad Flux Errors','The OI 1305 wavelength range contains flux error\nvalues that are zero, please edit the line range!',QtWidgets.QMessageBox.Ok)
-                if badOxygen==QtWidgets.QMessageBox.Ok:
+                badOxygen=QtWidgets.QMessageBox.warning(self,'OI 1305 Contains Bad Flux Errors','The OI 1305 wavelength range contains flux error\nvalues that are zero, please edit the line range!',QtWidgets.QMessageBox.StandardButton.Ok)
+                if badOxygen==QtWidgets.QMessageBox.StandardButton.Ok:
                     allGood=False
         else:
             disableOI5=False
@@ -2606,11 +2934,33 @@ class rangeWindow(QtWidgets.QDialog,UiRangeWindow):
         if np.any(fwOI6==np.inf):
             disableOI6=True
             if GUI.currentLine==6:
-                badOxygen=QtWidgets.QMessageBox.warning(self,'OI 1306 Contains Bad Flux Errors','The OI 1306 wavelength range contains flux error\nvalues that are zero, please edit the line range!',QtWidgets.QMessageBox.Ok)
-                if badOxygen==QtWidgets.QMessageBox.Ok:
+                badOxygen=QtWidgets.QMessageBox.warning(self,'OI 1306 Contains Bad Flux Errors','The OI 1306 wavelength range contains flux error\nvalues that are zero, please edit the line range!',QtWidgets.QMessageBox.StandardButton.Ok)
+                if badOxygen==QtWidgets.QMessageBox.StandardButton.Ok:
                     allGood=False  
         else:
             disableOI6=False
+            
+        #user input, make sure change is okay
+        if GUI.fitIndex==0 and GUI.currentRange!=[float(self.minLyAtemp),float(self.maxLyAtemp)]:
+            allGood=GUI.fitChanges()
+            if not allGood:
+                self.minLyA.setText(str(GUI.currentRange[0])) #return original values back to the input box
+                self.maxLyA.setText(str(GUI.currentRange[1]))
+        elif GUI.fitIndex==1 and GUI.currentRange!=[float(self.minOI2temp),float(self.maxOI2temp)]:
+            allGood=GUI.fitChanges()
+            if not allGood:
+                self.minOI2.setText(str(GUI.currentRange[0])) #return original values back to the input box
+                self.maxOI2.setText(str(GUI.currentRange[1]))
+        elif GUI.fitIndex==2 and GUI.currentRange!=[float(self.minOI5temp),float(self.maxOI5temp)]:
+            allGood=GUI.fitChanges()
+            if not allGood:
+                self.minOI5.setText(str(GUI.currentRange[0])) #return original values back to the input box
+                self.maxOI5.setText(str(GUI.currentRange[1]))
+        elif GUI.fitIndex==3 and GUI.currentRange!=[float(self.minOI6temp),float(self.maxOI6temp)]:
+            allGood=GUI.fitChanges()
+            if not allGood:
+                self.minOI6.setText(str(GUI.currentRange[0])) #return original values back to the input box
+                self.maxOI6.setText(str(GUI.currentRange[1]))
                         
         if allGood:
             #update range labels and lists to reflect new values
@@ -2623,27 +2973,20 @@ class rangeWindow(QtWidgets.QDialog,UiRangeWindow):
             GUI.rangeOI6=[float(self.minOI6temp),float(self.maxOI6temp)]
             GUI.labelOI6.setText('OI 1306 Range: '+str(GUI.rangeOI6[0])+' - '+str(GUI.rangeOI6[1])+' Å') 
             
-            #update the plot display for the currently selected line
+            #update the currently selected line range
             if GUI.fitIndex==0:
-                GUI.displayPlot(GUI.rangeLyA)
                 GUI.currentRange=GUI.rangeLyA
             elif GUI.fitIndex==1:
-                GUI.displayPlot(GUI.rangeOI2)
                 GUI.currentRange=GUI.rangeOI2  
             elif GUI.fitIndex==2:
-                GUI.displayPlot(GUI.rangeOI5)
                 GUI.currentRange=GUI.rangeOI5  
             elif GUI.fitIndex==3:
-                GUI.displayPlot(GUI.rangeOI6)
                 GUI.currentRange=GUI.rangeOI6  
                 
-            #if a fit currently exists, redo the fit with the new wavelength range
+            #if a fit currently exists, redo the fit with the new wavelength range, otherwise update plot range of currently selected line
             if GUI.fitExists:
-                GUI.prepareLSF() #make sure the LSF is created for the correct waveInf
-                if GUI.whichFit==1:
-                    GUI.runModel() #rerun model with new range and waveInf
-                else:
-                    GUI.runModel2() #rerun models with new range and waveInf
+                GUI.lineActions(GUI.currentRange,GUI.fitIndex)
+            else:
                 GUI.displayPlot(GUI.currentRange)
                 
             #disable/enable any oxygen lines that require it
@@ -2671,18 +3014,18 @@ class rangeWindow(QtWidgets.QDialog,UiRangeWindow):
     def cancelNew(self):
         self.close()
 
-class stisWindow(QtWidgets.QMainWindow,UiStisWindow):
+class stisWindow(QtWidgets.QMainWindow,stisUi):
     def __init__(self):
         super(stisWindow,self).__init__()
         self.setupUi(self)
         self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
-        self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
+        self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal) #make this the only interactable window while open
         
         #matplotlib toolbar, wasn't supported in QDialog so I made this a QMainWindow
         self.addToolBar(NavToolbar(self.MplWidgetSTIS.canvas,self))
         
         #STIS slider stuff
-        self.scalix=GUI.sfSTIS
+        self.scalix=GUI.sfSTIS[GUI.fitIndex]
         self.sliderSTIS.setValue(int(self.scalix*(1000.0/10.0))) #slider goes from 0..1000, scaled to 0.0..10.0
         self.inputSTIS.setText(str(round(self.scalix,2))) #display current scale value
         self.inputSTIS.returnPressed.connect(self.changeSTIS) #pressing enter on lineEdit box applies user STIS scale
@@ -2698,10 +3041,12 @@ class stisWindow(QtWidgets.QMainWindow,UiStisWindow):
         #calculate and display the integrated fluxes (maybe I should do errorbars too?)
         if GUI.fitExists:
             self.intCOS=GUI.integrateFlux(GUI.waveCOS[GUI.allLinemasks[GUI.fitIndex]],self.tempRecov[GUI.allLinemasks[GUI.fitIndex]])
-            self.cosIntvalue.setText('{:0.2e}'.format(self.intCOS))
+            self.ierCOS=GUI.coreEnforcer(GUI.waveCOS[GUI.allLinemasks[GUI.fitIndex]],self.tempRecov[GUI.allLinemasks[GUI.fitIndex]],self.tempError[GUI.allLinemasks[GUI.fitIndex]])
+            self.cosIntvalue.setText('{:0.2e}'.format(self.intCOS)+' + '+'{:0.2e}'.format(self.ierCOS[0])+' - '+'{:0.2e}'.format(self.ierCOS[1]))
         self.maskSTIS=((GUI.currentRange[0]<=GUI.waveSTIS)&(GUI.waveSTIS<=GUI.currentRange[1]))
         self.intSTIS=GUI.integrateFlux(GUI.waveSTIS[self.maskSTIS],GUI.fluxSTIS[self.maskSTIS]*self.scalix)
-        self.stisIntvalue.setText('{:0.2e}'.format(self.intSTIS))
+        self.ierSTIS=GUI.coreEnforcer(GUI.waveSTIS[self.maskSTIS],GUI.fluxSTIS[self.maskSTIS]*self.scalix,GUI.errrSTIS[self.maskSTIS]*self.scalix)
+        self.stisIntvalue.setText('{:0.2e}'.format(self.intSTIS)+' + '+'{:0.2e}'.format(self.ierSTIS[0])+' - '+'{:0.2e}'.format(self.ierSTIS[1]))
         
         #show the plot from the beginning, initial default is scale factor of 1.0
         self.firstSTIS=True
@@ -2713,8 +3058,8 @@ class stisWindow(QtWidgets.QMainWindow,UiStisWindow):
             temp_val=int(round(float(self.inputSTIS.text())*(1000.0/10.0))) #convert value back to 0..1000 range
             isFloat=True
         except:
-            notFloat=QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float!',QtWidgets.QMessageBox.Ok)
-            if notFloat==QtWidgets.QMessageBox.Ok:
+            notFloat=QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float!',QtWidgets.QMessageBox.StandardButton.Ok)
+            if notFloat==QtWidgets.QMessageBox.StandardButton.Ok:
                 isFloat=False
                 
         if isFloat:
@@ -2725,21 +3070,27 @@ class stisWindow(QtWidgets.QMainWindow,UiStisWindow):
             else:
                 unscaled_val=temp_val
             self.scalix=unscaled_val*(10.0/1000.0)
-            GUI.sfSTIS=self.scalix
             self.inputSTIS.setText(str(round(self.scalix,2)))
             self.sliderSTIS.setValue(unscaled_val)
             QtWidgets.QApplication.focusWidget().clearFocus() #after pressing enter, textbox is no longer selected
             self.intSTIS=GUI.integrateFlux(GUI.waveSTIS[self.maskSTIS],GUI.fluxSTIS[self.maskSTIS]*self.scalix)
-            self.stisIntvalue.setText('{:0.2e}'.format(self.intSTIS))
+            self.ierSTIS=GUI.coreEnforcer(GUI.waveSTIS[self.maskSTIS],GUI.fluxSTIS[self.maskSTIS]*self.scalix,GUI.errrSTIS[self.maskSTIS]*self.scalix)
+            GUI.intSTISdat=self.intSTIS
+            GUI.intSTISerr=self.ierSTIS #update GUI values
+            GUI.sfSTIS[GUI.fitIndex]=self.scalix
+            self.stisIntvalue.setText('{:0.2e}'.format(self.intSTIS)+' + '+'{:0.2e}'.format(self.ierSTIS[0])+' - '+'{:0.2e}'.format(self.ierSTIS[1]))
             
             self.plotSTIS()
     
     def scaleSTIS(self,value): #changing the slider itself
         self.scalix=value*(10.0/1000.0)
-        GUI.sfSTIS=self.scalix
         self.inputSTIS.setText(str(round(self.scalix,2)))
         self.intSTIS=GUI.integrateFlux(GUI.waveSTIS[self.maskSTIS],GUI.fluxSTIS[self.maskSTIS]*self.scalix)
-        self.stisIntvalue.setText('{:0.2e}'.format(self.intSTIS))
+        self.ierSTIS=GUI.coreEnforcer(GUI.waveSTIS[self.maskSTIS],GUI.fluxSTIS[self.maskSTIS]*self.scalix,GUI.errrSTIS[self.maskSTIS]*self.scalix)
+        GUI.intSTISdat=self.intSTIS
+        GUI.intSTISerr=self.ierSTIS #update GUI values
+        GUI.sfSTIS[GUI.fitIndex]=self.scalix
+        self.stisIntvalue.setText('{:0.2e}'.format(self.intSTIS)+' + '+'{:0.2e}'.format(self.ierSTIS[0])+' - '+'{:0.2e}'.format(self.ierSTIS[1]))
         self.plotSTIS()
         
     def plotSTIS(self):
@@ -2766,88 +3117,82 @@ class stisWindow(QtWidgets.QMainWindow,UiStisWindow):
         self.MplWidgetSTIS.canvas.axes.legend()
         self.MplWidgetSTIS.canvas.draw()
         
-class resultWindow(QtWidgets.QDialog,UiValsWindow):
+class resultWindow(QtWidgets.QDialog,resultsUi):
     def __init__(self):
         super(resultWindow,self).__init__()
         self.setupUi(self)
         self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
-        self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
+        self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal) #make this the only interactable window while open
         
         if not GUI.bootDone[GUI.fitIndex]:
-            self.linecenValue.setText(str(round(GUI.pv[0],4))+' (fixed)')
-            self.starvradValue.setText(str(round(GUI.pv[1],4))+' +/- '+self.prepErr(GUI.pe[1]))
-            self.gaussValue.setText(str(round(GUI.pv[2],4))+' +/- '+self.prepErr(GUI.pe[2]))
-            if GUI.fitIndex==0:
-                self.lorentzValue.setText(str(round(GUI.pv[3],4))+' +/- '+self.prepErr(GUI.pe[3]))
-            self.ampValue.setText(str(round(GUI.pv[4],4))+' +/- '+self.prepErr(GUI.pe[4]))
-            if GUI.fitIndex==0:
-                self.revwidthValue.setText(str(round(GUI.pv[5],4))+' +/- '+self.prepErr(GUI.pe[5]))
-                self.revdepthValue.setText(str(round(GUI.pv[6],4))+' (fixed)')
-                self.coldensValue.setText(str(round(GUI.pv[7],4))+' +/- '+self.prepErr(GUI.pe[7]))
-                self.ismvradValue.setText(str(round(GUI.pv[8],4))+' +/- '+self.prepErr(GUI.pe[8]))
-                self.dopbValue.setText(str(round(GUI.pv[9],4))+' (fixed)')
-            if GUI.whichAir==0:
-                self.agshiftValue.setText(str(round(GUI.pv[10],4))+' +/- '+self.prepErr(GUI.pe[10]))
-                self.agscaleValue.setText(str(round(GUI.pv[11],4))+' +/- '+self.prepErr(GUI.pe[11]))
-            elif GUI.whichAir==1:
-                self.agshiftValue.setText(str(round(GUI.pv[10],4))+' (fixed)')
-                self.agscaleValue.setText(str(round(GUI.pv[11],4))+' (fixed)')           
-            self.chiValue.setText(str(round(GUI.fitChi[0],4)))
-            self.redchiValue.setText(str(round(GUI.fitChi[1],4)))
-            self.bicValue.setText(str(round(GUI.fitBic,4)))
+            parErr=GUI.pe
+        else:
+            parErr=np.array(GUI.finalRCBpae[GUI.fitIndex]).transpose() 
+        
+        self.linecenValue.setText(str(round(GUI.pv[0],4))+' (fixed)')
+        self.starvradValue.setText(str(round(GUI.pv[1],4))+self.prepErr(parErr[1]))
+        self.gaussValue.setText(str(round(GUI.pv[2],4))+self.prepErr(parErr[2]))
+        if GUI.fitIndex==0:
+            self.lorentzValue.setText(str(round(GUI.pv[3],4))+self.prepErr(parErr[3]))
+        self.ampValue.setText(str(round(GUI.pv[4],4))+self.prepErr(parErr[4]))
+        if GUI.fitIndex==0:
+            self.revwidthValue.setText(str(round(GUI.pv[5],4))+self.prepErr(parErr[5]))
+            self.revdepthValue.setText(str(round(GUI.pv[6],4))+' (fixed)')
+            self.coldensValue.setText(str(round(GUI.pv[7],4))+self.prepErr(parErr[7]))
+            self.ismvradValue.setText(str(round(GUI.pv[8],4))+self.prepErr(parErr[8]))
+            self.dopbValue.setText(str(round(GUI.pv[9],4))+' (fixed)')
+        if GUI.whichAir==0:
+            if GUI.whichFit==1:
+                self.agshiftValue.setText(str(round(GUI.pv[10],4))+self.prepErr(parErr[10]))
+                self.agscaleValue.setText(str(round(GUI.pv[11],4))+self.prepErr(parErr[11]))
+            else: #display the original airglow errors, since this does not get bootstrapped
+                self.agshiftValue.setText(str(round(GUI.pv[10],4))+self.prepErr(GUI.pe[10]))
+                self.agscaleValue.setText(str(round(GUI.pv[11],4))+self.prepErr(GUI.pe[11]))      
+        elif GUI.whichAir==1:
+            self.agshiftValue.setText(str(round(GUI.pv[10],4))+' (fixed)')
+            self.agscaleValue.setText(str(round(GUI.pv[11],4))+' (fixed)')         
+        self.chiValue.setText(str(round(GUI.fitChi[0],4)))
+        self.redchiValue.setText(str(round(GUI.fitChi[1],4)))
+        self.bicValue.setText(str(round(GUI.fitBic,4)))
+        
+        if not GUI.bootDone[GUI.fitIndex]:
             if GUI.intStelerr[0]!=None:
                 self.starfluxValue.setText('{:0.2e}'.format(GUI.intStellar)+' + '+'{:0.2e}'.format(GUI.intStelerr[0])+' - '+'{:0.2e}'.format(GUI.intStelerr[1]))
             else:
                 self.starfluxValue.setText('{:0.2e}'.format(GUI.intStellar)+' (no error reported)')
-            self.recovfluxValue.setText('{:0.2e}'.format(GUI.intRecover))
-            if GUI.readySTIS:
-                self.stisfluxValue.setText('{:0.2e}'.format(GUI.intSTISdat*GUI.sfSTIS))#+' +/- '+self.prepErr(GUI.intSTISerr))
         else:
-            self.linecenValue.setText(str(round(GUI.pv[0],4))+' (fixed)')
-            self.starvradValue.setText(str(round(GUI.pv[1],4))+' + '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][0][1])+' - '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][1][1]))
-            self.gaussValue.setText(str(round(GUI.pv[2],4))+' + '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][0][2])+' - '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][1][2]))
-            if GUI.fitIndex==0:
-                self.lorentzValue.setText(str(round(GUI.pv[3],4))+' + '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][0][3])+' - '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][1][3]))
-            self.ampValue.setText(str(round(GUI.pv[4],4))+' + '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][0][4])+' - '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][1][4]))
-            if GUI.fitIndex==0:
-                self.revwidthValue.setText(str(round(GUI.pv[5],4))+' + '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][0][5])+' - '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][1][5]))
-                self.revdepthValue.setText(str(round(GUI.pv[6],4))+' (fixed)')
-                self.coldensValue.setText(str(round(GUI.pv[7],4))+' + '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][0][7])+' - '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][1][7]))
-                self.ismvradValue.setText(str(round(GUI.pv[8],4))+' + '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][0][8])+' - '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][1][8]))
-                self.dopbValue.setText(str(round(GUI.pv[9],4))+' (fixed)')
-            if GUI.whichAir==0:
-                if GUI.whichFit==1:
-                    self.agshiftValue.setText(str(round(GUI.pv[10],4))+' + '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][0][10])+' - '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][1][10]))
-                    self.agscaleValue.setText(str(round(GUI.pv[11],4))+' + '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][0][11])+' - '+self.prepErr(GUI.finalRCBpae[GUI.fitIndex][1][11]))
-                else: #display the original airglow errors, since this does not get bootstrapped
-                    self.agshiftValue.setText(str(round(GUI.pv[10],4))+' +/- '+self.prepErr(GUI.pe[10]))
-                    self.agscaleValue.setText(str(round(GUI.pv[11],4))+' +/- '+self.prepErr(GUI.pe[11]))                    
-            elif GUI.whichAir==1:
-                self.agshiftValue.setText(str(round(GUI.pv[10],4))+' (fixed)')
-                self.agscaleValue.setText(str(round(GUI.pv[11],4))+' (fixed)')           
-            self.chiValue.setText(str(round(GUI.fitChi[0],4)))
-            self.redchiValue.setText(str(round(GUI.fitChi[1],4)))
-            self.bicValue.setText(str(round(GUI.fitBic,4)))
-            self.starfluxValue.setText('{:0.2e}'.format(GUI.intStellar)+' + '+'{:0.2e}'.format(GUI.finalRCBsie[GUI.fitIndex][0])+' - '+'{:0.2e}'.format(GUI.finalRCBsie[GUI.fitIndex][1]))
-            self.recovfluxValue.setText('{:0.2e}'.format(GUI.intRecover))
-            if GUI.readySTIS:
-                self.stisfluxValue.setText('{:0.2e}'.format(GUI.intSTISdat))#+' +/- '+self.prepErr(GUI.intSTISerr))
-        
-    def prepErr(self,err):
-        try:
-            errstr=str(round(err,4))
-        except:
-            errstr='N/A'
-        return errstr
+            self.starfluxValue.setText('{:0.2e}'.format(GUI.intStellar)+' + '+'{:0.2e}'.format(GUI.finalRCBsie[GUI.fitIndex][0])+' - '+'{:0.2e}'.format(GUI.finalRCBsie[GUI.fitIndex][1])) 
+        self.recovfluxValue.setText('{:0.2e}'.format(GUI.intRecover)+' + '+'{:0.2e}'.format(GUI.intRecverr[0])+' - '+'{:0.2e}'.format(GUI.intRecverr[1]))
+        if GUI.readySTIS:
+            self.stisfluxValue.setText('{:0.2e}'.format(GUI.intSTISdat)+' + '+'{:0.2e}'.format(GUI.intSTISerr[0])+' - '+'{:0.2e}'.format(GUI.intSTISerr[1])) #these are already scaled, do not need to multiply again
         
         self.show()
         
-class residualWindow(QtWidgets.QMainWindow,UiResidWindow):
+    def prepErr(self,err):
+        #convert single float into a list if necessary
+        if isinstance(err,float):
+                err=[err] 
+        #begin string formatting
+        if len(err)==1:
+            errstr=' +/- '
+        elif len(err)==2:
+            errstr=' + '
+        #loop through error(s)
+        for e in range(0,len(err)):
+            try:
+                errstr+=str(round(err[e],4))
+            except:
+                errstr+='N/A'
+            if len(err)==2 and e!=1:
+                errstr+=' - ' #add between errors
+        return errstr
+        
+class residualWindow(QtWidgets.QMainWindow,residualsUi):
     def __init__(self):
         super(residualWindow,self).__init__()
         self.setupUi(self)
         self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
-        self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
+        self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal) #make this the only interactable window while open
         
         #matplotlib toolbar, wasn't supported in QDialog so I made this a QMainWindow
         self.addToolBar(NavToolbar(self.MplWidgetResid.canvas,self))
@@ -2861,9 +3206,9 @@ class residualWindow(QtWidgets.QMainWindow,UiResidWindow):
         
         #calculate the normalized residuals based on the current best fit
         if GUI.whichFit==1:
-            self.normres=((GUI.origbest-GUI.fluxCOS[GUI.origmask])**2.0)/(GUI.errrCOS[GUI.origmask]**2.0)
+            self.normres=((GUI.origBests[GUI.fitIndex]-GUI.fluxCOS[GUI.origMasks[GUI.fitIndex]])**2.0)/(GUI.errrCOS[GUI.origMasks[GUI.fitIndex]]**2.0)
         else:
-            self.normres=((GUI.origbest-GUI.oneSpectrum[GUI.origmask])**2.0)/(GUI.oneError[GUI.origmask]**2.0)
+            self.normres=((GUI.origBests[GUI.fitIndex]-GUI.oneSpectrum[GUI.origMasks[GUI.fitIndex]])**2.0)/(GUI.oneError[GUI.origMasks[GUI.fitIndex]]**2.0)
         
         self.tempCut=np.inf
         self.firstCutoff=True
@@ -2881,7 +3226,7 @@ class residualWindow(QtWidgets.QMainWindow,UiResidWindow):
                 self.plotCutoff()
                 QtWidgets.QApplication.focusWidget().clearFocus()
             else:
-                QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float or as infinity!',QtWidgets.QMessageBox.Ok)
+                QtWidgets.QMessageBox.warning(self,'Could not interpret input','The entered value could not be interpreted as a float or as infinity!',QtWidgets.QMessageBox.StandardButton.Ok)
 
     def plotCutoff(self):
         if self.firstCutoff:
@@ -2907,16 +3252,16 @@ class residualWindow(QtWidgets.QMainWindow,UiResidWindow):
         except:
             pass
         if GUI.allCutoffs[GUI.fitIndex]!=np.inf:
-            self.MplWidgetResid.canvas.axes1.plot(GUI.waveCOS[GUI.origmask],GUI.origbest,color='C2',linewidth=2,linestyle='--',label='Original Best Fit (inf)')
+            self.MplWidgetResid.canvas.axes1.plot(GUI.waveCOS[GUI.origMasks[GUI.fitIndex]],GUI.origBests[GUI.fitIndex],color='C2',linewidth=2,linestyle='--',label='Original Best Fit (inf)')
             try:
-                self.MplWidgetResid.canvas.axes1.fill_between(GUI.waveCOS[GUI.origmask]+GUI.allFitshifts[GUI.fitIndex],(GUI.origbest+GUI.origberr[0])*GUI.allFitscales[GUI.fitIndex],(GUI.origbest-GUI.origberr[1])*GUI.allFitscales[GUI.fitIndex],color='C2',alpha=0.25)
+                self.MplWidgetResid.canvas.axes1.fill_between(GUI.waveCOS[GUI.origMasks[GUI.fitIndex]]+GUI.allFitshifts[GUI.fitIndex],(GUI.origBests[GUI.fitIndex]+GUI.origBerrs[GUI.fitIndex][0])*GUI.allFitscales[GUI.fitIndex],(GUI.origBests[GUI.fitIndex]-GUI.origBerrs[GUI.fitIndex][1])*GUI.allFitscales[GUI.fitIndex],color='C2',alpha=0.25)
             except:
                 pass
         self.MplWidgetResid.canvas.axes1.set_ylabel('Flux Density (erg $cm^{-2}$ $s^{-1}$ $\AA^{-1}$)')
         self.MplWidgetResid.canvas.axes1.set_xlim(self.cutXlim)
         self.MplWidgetResid.canvas.axes1.set_ylim(self.cutYlim)
         self.MplWidgetResid.canvas.axes1.legend()
-        self.MplWidgetResid.canvas.axes2.plot(GUI.waveCOS[GUI.origmask],self.normres,color='C7',linewidth=2,label='Original $\chi^2_R$')
+        self.MplWidgetResid.canvas.axes2.plot(GUI.waveCOS[GUI.origMasks[GUI.fitIndex]],self.normres,color='C7',linewidth=2,label='Original $\chi^2_R$')
         self.MplWidgetResid.canvas.axes2.axhline(self.tempCut,color='k',linewidth=2)
         self.MplWidgetResid.canvas.axes2.set_xlabel('Wavelength ($\AA$)')
         self.MplWidgetResid.canvas.axes2.set_ylabel('Normalized Residuals$^2$')
@@ -2935,12 +3280,12 @@ class residualWindow(QtWidgets.QMainWindow,UiResidWindow):
     def closeCutoff(self):
         self.close()      
 
-class spectrumWindow(QtWidgets.QDialog,UiTrueWindow):
+class spectrumWindow(QtWidgets.QDialog,recoveredUi):
     def __init__(self):
         super(spectrumWindow,self).__init__()
         self.setupUi(self)
         self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
-        self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
+        self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal) #make this the only interactable window while open
         
         #selection push buttons
         self.newButton.clicked.connect(self.createNew)
@@ -2956,12 +3301,13 @@ class spectrumWindow(QtWidgets.QDialog,UiTrueWindow):
         GUI.removeMethod='Cancel'
         self.close()                   
         
-class bootstrapWindow(QtWidgets.QDialog,UiBootWindow):
+class bootstrapWindow(QtWidgets.QDialog,bootstrapUi):
     def __init__(self):
         super(bootstrapWindow,self).__init__()
         self.setupUi(self)
         self.setWindowIcon(QtGui.QIcon(path+'//3x3_icon.webp'))
-        self.setWindowModality(QtCore.Qt.ApplicationModal) #make this the only interactable window while open
+        self.setWindowModality(QtCore.Qt.WindowModality.ApplicationModal) #make this the only interactable window while open
+        self.setWindowFlags(QtCore.Qt.WindowType.WindowStaysOnTopHint) #always have this window on top, so plots don't get in the way
         
         #calculate values for both labels and RRCBB setup
         self.numpar=len(GUI.bestFit)-(GUI.fitChi[0]/GUI.fitChi[1]) #number of free parameters
@@ -2988,13 +3334,27 @@ class bootstrapWindow(QtWidgets.QDialog,UiBootWindow):
             self.blockNumber.setToolTip('')
         self.bootRan=False
         
-        #push buttons
-        self.runButton.clicked.connect(self.runBoot)
-        if GUI.bootDone[GUI.fitIndex]: #if bootstrap already run
-            self.runButton.setDisabled(True)
+        #push buttons and progress bar
+        if GUI.bootDone[GUI.fitIndex]: #if bootstrap already run, reconfigure buttons and load plotting data
+            self.runButton.clicked.connect(self.plotBoot)
+            self.runButton.setText('View RRCBB Plots')
             self.cancelButton.setText('Close')
             self.timeLabel.setText('Already Ran')
+            self.bootTracker.setValue(1000) #full bar to represent it has already been run
+            self.bootTracker.setFormat("%.1f%%" % 100.0)
+            self.all_fit=GUI.finalRCBfit[GUI.fitIndex]
+            self.all_ste=GUI.finalRCBste[GUI.fitIndex]
+            self.intBesberr=GUI.finalRCBbfe[GUI.fitIndex]
+            self.intBroferr=GUI.finalRCBsce[GUI.fitIndex]
+            try:
+                self.mdler=np.maximum(GUI.intBesterr[0],GUI.intBesterr[1])
+            except:
+                self.mdler=False
+        else: #otherwise, load the normal button connections
+            self.runButton.clicked.connect(self.runBoot)
+            self.bootTracker.setFormat("%.1f%%" % 0.0)
         self.cancelButton.clicked.connect(self.closeBoot)
+        
         
     def MWR(self,resid,error,numdp,numpr):
         #modified weighted residuals, the value that will be bootstrapped
@@ -3185,6 +3545,7 @@ class bootstrapWindow(QtWidgets.QDialog,UiBootWindow):
         
         start=time.time()
         for j in range(0,len(all_RCB)):
+            QtWidgets.QApplication.processEvents() #update progress bar frequently and without freezing
             if GUI.whichFit==1:
                 booterror=self.errorProp(GUI.errrCOS[GUI.allLinemasks[GUI.fitIndex]],self.modlErr,all_ERR[j],all_LMF[j],self.numpar)
                 Bbest,Bpara,Brept,Bchi2,Bbicc=GUI.totalModel(GUI.waveCOS[GUI.allLinemasks[GUI.fitIndex]],GUI.bestFit+all_RCB[j],booterror,GUI.lineCenters[GUI.fitIndex],GUI.finalRadial[GUI.fitIndex],GUI.finalRadism[GUI.fitIndex],GUI.finalUshifts[GUI.fitIndex],GUI.finalUscales[GUI.fitIndex],GUI.currentLine)
@@ -3201,6 +3562,7 @@ class bootstrapWindow(QtWidgets.QDialog,UiBootWindow):
             fitvel=estimt/(j+1) #average minutes/fit
             remain=(1000-(j+1))*fitvel #minutes remaining
             self.bootTracker.setValue(j+1)
+            self.bootTracker.setFormat("%.1f%%" % ((j+1)/10))
             self.timeLabel.setText(str(round(remain,2))+' Minutes')
             
             self.all_fit.append(Bbest)
@@ -3216,8 +3578,10 @@ class bootstrapWindow(QtWidgets.QDialog,UiBootWindow):
         self.intBroferr,self.intBooterr=GUI.powerConstruct(GUI.allWaveinfs[GUI.fitIndex],self.allp[0][0],False,False,False,False,num_prf=self.numsmp,boot=self.allp)
         self.intBesberr=self.profError()
         
+        self.runButton.clicked.disconnect() #change this button's functionality
+        self.runButton.clicked.connect(self.plotBoot)
+        self.runButton.setText('Display Plots')
         self.cancelButton.setText('Close')
-        self.runButton.setDisabled(True) #don't let the user run this again unnecessarily
         self.plotBoot()
         self.bootRan=True
     
@@ -3265,7 +3629,8 @@ def starTemplate(waveGrid_s,lineCen_s,radialVel_s,fwhmG_s,fwhmL_s,fluxAmp_s,fwhm
 
 def run():
     global GUI #keep gui alive outside of the function
-    app=QtCore.QCoreApplication.instance()
+    app=QtWidgets.QApplication(sys.argv) 
+    #qdarktheme.setup_theme('auto') #allows for following system light/dark mode
     if app is None: #keep kernel from dying
         app=QtWidgets.QApplication(sys.argv) 
     GUI=mainWindow()
