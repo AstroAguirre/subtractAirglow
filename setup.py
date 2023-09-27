@@ -17,7 +17,7 @@ setup(
       version=__version__,
       description='Subtract airglow and reconstruct stellar emission from COS G130M spectra',
       url='https://github.com/AstroAguirre/subtractAirglow.git',
-      download_url='https://github.com/AstroAguirre/subtractAirglow/archive/refs/tags/v0.1.0.tar.gz',
+      download_url='https://github.com/AstroAguirre/subtractAirglow/archive/refs/tags/v0.1.0.1.tar.gz',
       author='Fernando Cruz Aguirre',
       author_email='edwinfernando-cruzaguirre@uiowa.edu',
       license='MIT',
