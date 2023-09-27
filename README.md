@@ -24,7 +24,7 @@ conda activate subAG
 The `subtractAirglow` module can then be installed in the virtual environment by using `pip`:
 
 ```
-pip install git+https://github.com/AstroAguirre/subtractAirglow.git
+pip install subtractAirglow
 ```
 
 ## Import the GUI
